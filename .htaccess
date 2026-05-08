@@ -1,0 +1,55 @@
+# url.thern.io / shortly — Apache config (Inleed shared hosting)
+#
+# Strategy: serve real files directly (assets, robots.txt, favicon),
+# rewrite everything else to index.php for routing.
+
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS (uncomment once SSL cert is set up):
+    # RewriteCond %{HTTPS} !=on
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Don't rewrite real files or directories.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else → index.php
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# Cache static assets a little.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css                "access plus 1 hour"
+    ExpiresByType text/javascript         "access plus 1 hour"
+    ExpiresByType application/javascript  "access plus 1 hour"
+    ExpiresByType image/svg+xml           "access plus 1 day"
+</IfModule>
+
+# Sensible MIME for ES modules.
+<IfModule mod_mime.c>
+    AddType application/javascript .mjs
+</IfModule>
+
+# Block hidden files (basename match — files inside .well-known/ are NOT
+# affected since their own basename doesn't start with a dot).
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Block source / config / shell / sqlite files from being served as text.
+<FilesMatch "(?i)\.(sqlite|sqlite3|db|env|ini|log|bak|swp|sh|conf)$">
+    Require all denied
+</FilesMatch>
+
+# Block direct access to config files. config.php executes (returning empty)
+# but blocking adds defense in depth if display_errors is ever enabled or if
+# someone temporarily injects print/echo for debugging.
+<FilesMatch "^(config|config\.example)\.php$">
+    Require all denied
+</FilesMatch>

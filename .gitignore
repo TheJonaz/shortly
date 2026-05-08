@@ -1,0 +1,33 @@
+# Local config / secrets
+config.php
+.ftp-password
+
+# Database files (SQLite lives in data/)
+data/*.db
+data/*.db-*
+
+# Generated blocklist — populated by deploy/update-blocklist.sh from URLhaus.
+# Excluded so the repo doesn't churn every time it's refreshed.
+data/blocklist.txt
+
+# Logs
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node (only if a build step is added later)
+node_modules/
+
+# Personal notes / drafts
+members.tips
+.members.tips*
+
+# Site-verification files (per-deploy, don't ship in OSS repo)
+.well-known/*-verify.txt
+.well-known/*-verification.txt
