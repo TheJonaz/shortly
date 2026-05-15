@@ -32,6 +32,21 @@ function set_currency(string $cur): void {
     $GLOBALS['CURRENCY'] = $cur;
 }
 
+// Display strings for Pro plan prices per currency. Kept in PHP so the
+// landing page pricing block can render server-side; the JS upgrade panel
+// keeps its own copy in assets/js/app.js (PRICES) — update both if you
+// change the amounts.
+const PRICE_DISPLAY = [
+    'sek' => ['monthly' => '49 kr', 'yearly' => '490 kr'],
+    'eur' => ['monthly' => '€4,99', 'yearly' => '€49'   ],
+    'usd' => ['monthly' => '$5',    'yearly' => '$50'   ],
+];
+
+function price_display(string $plan): string {
+    $cur = $GLOBALS['CURRENCY'] ?? 'sek';
+    return PRICE_DISPLAY[$cur][$plan] ?? '';
+}
+
 function t(string $key, string ...$args): string {
     $lang = $GLOBALS['LANG'] ?? 'en';
     static $strings = null;
@@ -126,6 +141,31 @@ function lang_strings(): array {
             'nav_keys'             => 'API',
             // Billing (sv)
             'billing_curr_label'   => 'Valuta',
+            // Landing pricing section (sv)
+            'pricing_h'            => 'Välj plan',
+            'pricing_sub'          => 'Börja gratis. Uppgradera när du behöver mer.',
+            'pricing_most_value'   => 'Mest värde',
+            'pricing_per_month'    => '/ månad',
+            'pricing_per_year'     => '/ år',
+            'pricing_free'         => 'Gratis',
+            'tier_free'            => 'Free',
+            'tier_pro_monthly'     => 'Pro · månad',
+            'tier_pro_yearly'      => 'Pro · år',
+            'tier_free_tag'        => 'För småfix och privatbruk.',
+            'tier_pro_tag'         => 'För dig som delar länkar regelbundet.',
+            'tier_free_f1'         => 'Korta länkar utan konto eller med',
+            'tier_free_f2'         => 'Klickstatistik',
+            'tier_free_f3'         => 'Automatiskt utgångsdatum',
+            'tier_free_f4'         => '100 API-anrop/timme',
+            'tier_pro_f1'          => 'Allt i Free',
+            'tier_pro_f2'          => 'Lösenordsskydd',
+            'tier_pro_f3'          => 'Anpassad utgång (eller ingen)',
+            'tier_pro_f4'          => 'Redigerbara länkar',
+            'tier_pro_f5'          => 'Bulk-uppladdning',
+            'tier_pro_f6'          => '1000 API-anrop/timme',
+            'pricing_cta_free'     => 'Skapa konto',
+            'pricing_cta_pro'      => 'Välj Pro',
+            'pricing_cta_app'      => 'Till dashboard',
             'billing_upgrade_h'    => 'Uppgradera till Pro',
             'billing_upgrade_sub'  => 'Få avancerad statistik, redigerbara länkar, lösenordsskydd, anpassad utgång, bulk-uppladdning och mer.',
             'billing_yearly_save'  => 'Spara 17%',
@@ -206,6 +246,7 @@ function lang_strings(): array {
             'foot_systems'    => 'Alla system online',
             'foot_ftax'       => 'Innehar F-skatt',
             'foot_report_link' => 'Rapportera missbruk',
+            'foot_bis_member' => 'Stolt medlem av Based In Sweden',
             // Consent banner
             'consent_text'    => 'Vi loggar varje besök (IP, webbläsare, tid) för intern statistik — inga spårningscookies eller tredjepartsspårare. (Funktions­cookies för inloggning och språkval används endast när du själv använder de funktionerna.)',
             'consent_accept'  => 'Acceptera',
@@ -303,6 +344,31 @@ function lang_strings(): array {
             'nav_keys'             => 'API',
             // Billing (en)
             'billing_curr_label'   => 'Currency',
+            // Landing pricing section (en)
+            'pricing_h'            => 'Choose your plan',
+            'pricing_sub'          => 'Start free. Upgrade when you need more.',
+            'pricing_most_value'   => 'Most value',
+            'pricing_per_month'    => '/ month',
+            'pricing_per_year'     => '/ year',
+            'pricing_free'         => 'Free',
+            'tier_free'            => 'Free',
+            'tier_pro_monthly'     => 'Pro · monthly',
+            'tier_pro_yearly'      => 'Pro · yearly',
+            'tier_free_tag'        => 'For quick fixes and personal use.',
+            'tier_pro_tag'         => 'For people who share links regularly.',
+            'tier_free_f1'         => 'Short links, with or without an account',
+            'tier_free_f2'         => 'Click stats',
+            'tier_free_f3'         => 'Auto-expiring links',
+            'tier_free_f4'         => '100 API calls/hour',
+            'tier_pro_f1'          => 'Everything in Free',
+            'tier_pro_f2'          => 'Password protection',
+            'tier_pro_f3'          => 'Custom expiry (or none)',
+            'tier_pro_f4'          => 'Editable links',
+            'tier_pro_f5'          => 'Bulk upload',
+            'tier_pro_f6'          => '1000 API calls/hour',
+            'pricing_cta_free'     => 'Create account',
+            'pricing_cta_pro'      => 'Choose Pro',
+            'pricing_cta_app'      => 'Go to dashboard',
             'billing_upgrade_h'    => 'Upgrade to Pro',
             'billing_upgrade_sub'  => 'Get advanced analytics, editable links, password protection, custom expiry, bulk upload and more.',
             'billing_yearly_save'  => 'Save 17%',
@@ -383,6 +449,7 @@ function lang_strings(): array {
             'foot_systems'    => 'All Systems Online',
             'foot_ftax'       => 'Registered for F-tax in Sweden',
             'foot_report_link' => 'Report abuse',
+            'foot_bis_member' => 'Proud member of Based In Sweden',
             // Consent banner
             'consent_text'    => 'We log each visit (IP, browser, time) for internal stats — no tracking cookies or third-party trackers. (Functional cookies for sign-in and language are used only when you actively use those features.)',
             'consent_accept'  => 'Accept',

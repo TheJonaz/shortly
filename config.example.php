@@ -112,6 +112,8 @@ return [
         'brand_name'    => 'shortly',
         'brand_tagline' => '',
         'logo_svg'      => '',  // raw <svg>…</svg> — trusted, comes from your config
+        'bis_badge'     => '',  // path/URL to a 100×100 "Based In Sweden" image; '' = hide badge
+        'bis_href'      => 'https://www.basedinsweden.se',
         'columns'       => [
             // ['heading' => 'Project', 'links' => [
             //     ['label' => 'GitHub', 'href' => 'https://github.com/you/shortly'],

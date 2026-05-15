@@ -14,6 +14,8 @@ $contactLines = (array)  ($footer['contact_lines'] ?? []);
 $copyright    = (string) ($footer['copyright']     ?? ('© ' . date('Y')));
 $version      = (string) ($footer['version']       ?? '');
 $logoSvg      = (string) ($footer['logo_svg']      ?? '');
+$bisBadge     = (string) ($footer['bis_badge']     ?? '');  // path to "Based In Sweden" image; empty = hide
+$bisHref      = (string) ($footer['bis_href']      ?? 'https://www.basedinsweden.se');
 ?>
   <footer class="thern-footer">
     <div class="foot-inner">
@@ -29,6 +31,12 @@ $logoSvg      = (string) ($footer['logo_svg']      ?? '');
           </div>
         </div>
         <p class="foot-tagline"><?= t('foot_tagline') ?></p>
+        <?php if ($bisBadge !== ''): ?>
+        <a class="foot-bis" href="<?= e($bisHref) ?>" target="_blank" rel="noopener" title="Based In Sweden">
+          <img src="<?= e($bisBadge) ?>" alt="Based In Sweden" width="100" height="100" loading="lazy" decoding="async">
+          <span><?= t('foot_bis_member') ?></span>
+        </a>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 

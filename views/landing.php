@@ -95,6 +95,72 @@ require __DIR__ . '/_header.php';
     </div>
     <div class="qr-wrap" id="qr-wrap"><canvas id="qr"></canvas></div>
 
+    <section class="pricing">
+      <header class="pricing-header">
+        <h2><?= t('pricing_h') ?></h2>
+        <p><?= t('pricing_sub') ?></p>
+      </header>
+      <?php
+        $proHref = $user ? base_path() . '/app' : base_path() . '/register';
+        $proLabel = $user ? t('pricing_cta_app') : t('pricing_cta_pro');
+        $freeHref = $user ? base_path() . '/app' : base_path() . '/register';
+        $freeLabel = $user ? t('pricing_cta_app') : t('pricing_cta_free');
+      ?>
+      <div class="pricing-grid">
+        <article class="tier">
+          <span class="tier-name"><?= t('tier_free') ?></span>
+          <div class="tier-price">
+            <span class="amount"><?= t('pricing_free') ?></span>
+          </div>
+          <p class="tier-tagline"><?= t('tier_free_tag') ?></p>
+          <ul class="tier-features">
+            <li><?= t('tier_free_f1') ?></li>
+            <li><?= t('tier_free_f2') ?></li>
+            <li><?= t('tier_free_f3') ?></li>
+            <li><?= t('tier_free_f4') ?></li>
+          </ul>
+          <a class="btn ghost tier-cta" href="<?= e($freeHref) ?>"><?= e($freeLabel) ?></a>
+        </article>
+
+        <article class="tier">
+          <span class="tier-name"><?= t('tier_pro_monthly') ?></span>
+          <div class="tier-price">
+            <span class="amount"><?= e(price_display('monthly')) ?></span>
+            <span class="period"><?= t('pricing_per_month') ?></span>
+          </div>
+          <p class="tier-tagline"><?= t('tier_pro_tag') ?></p>
+          <ul class="tier-features">
+            <li><?= t('tier_pro_f1') ?></li>
+            <li><?= t('tier_pro_f2') ?></li>
+            <li><?= t('tier_pro_f3') ?></li>
+            <li><?= t('tier_pro_f4') ?></li>
+            <li><?= t('tier_pro_f5') ?></li>
+            <li><?= t('tier_pro_f6') ?></li>
+          </ul>
+          <a class="btn ghost tier-cta" href="<?= e($proHref) ?>"><?= e($proLabel) ?></a>
+        </article>
+
+        <article class="tier featured">
+          <span class="tier-badge"><?= t('pricing_most_value') ?></span>
+          <span class="tier-name"><?= t('tier_pro_yearly') ?></span>
+          <div class="tier-price">
+            <span class="amount"><?= e(price_display('yearly')) ?></span>
+            <span class="period"><?= t('pricing_per_year') ?></span>
+          </div>
+          <p class="tier-tagline"><?= t('billing_yearly_save') ?> · <?= t('tier_pro_tag') ?></p>
+          <ul class="tier-features">
+            <li><?= t('tier_pro_f1') ?></li>
+            <li><?= t('tier_pro_f2') ?></li>
+            <li><?= t('tier_pro_f3') ?></li>
+            <li><?= t('tier_pro_f4') ?></li>
+            <li><?= t('tier_pro_f5') ?></li>
+            <li><?= t('tier_pro_f6') ?></li>
+          </ul>
+          <a class="btn primary tier-cta" href="<?= e($proHref) ?>"><?= e($proLabel) ?></a>
+        </article>
+      </div>
+    </section>
+
     <section class="features">
       <article class="feature">
         <span class="num">01</span>
