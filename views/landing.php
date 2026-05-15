@@ -101,10 +101,15 @@ require __DIR__ . '/_header.php';
         <p><?= t('pricing_sub') ?></p>
       </header>
       <?php
-        $proHref = $user ? base_path() . '/app' : base_path() . '/register';
-        $proLabel = $user ? t('pricing_cta_app') : t('pricing_cta_pro');
-        $freeHref = $user ? base_path() . '/app' : base_path() . '/register';
-        $freeLabel = $user ? t('pricing_cta_app') : t('pricing_cta_free');
+        // /upgrade is the unified entry point for both anon + signed-in
+        // visitors. Server-side it bounces anon users through /register
+        // (carrying the plan in the query string) or starts Stripe Checkout
+        // directly for signed-in free users — see handle_upgrade_redirect().
+        $proLabel       = t('pricing_cta_pro');
+        $proMonthlyHref = base_path() . '/upgrade?plan=monthly';
+        $proYearlyHref  = base_path() . '/upgrade?plan=yearly';
+        $freeHref       = $user ? base_path() . '/app' : base_path() . '/register';
+        $freeLabel      = $user ? t('pricing_cta_app') : t('pricing_cta_free');
       ?>
       <div class="pricing-grid">
         <article class="tier">
@@ -137,7 +142,7 @@ require __DIR__ . '/_header.php';
             <li><?= t('tier_pro_f5') ?></li>
             <li><?= t('tier_pro_f6') ?></li>
           </ul>
-          <a class="btn ghost tier-cta" href="<?= e($proHref) ?>"><?= e($proLabel) ?></a>
+          <a class="btn ghost tier-cta" href="<?= e($proMonthlyHref) ?>"><?= e($proLabel) ?></a>
         </article>
 
         <article class="tier featured">
@@ -156,7 +161,7 @@ require __DIR__ . '/_header.php';
             <li><?= t('tier_pro_f5') ?></li>
             <li><?= t('tier_pro_f6') ?></li>
           </ul>
-          <a class="btn primary tier-cta" href="<?= e($proHref) ?>"><?= e($proLabel) ?></a>
+          <a class="btn primary tier-cta" href="<?= e($proYearlyHref) ?>"><?= e($proLabel) ?></a>
         </article>
       </div>
     </section>

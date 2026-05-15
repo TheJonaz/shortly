@@ -5,6 +5,11 @@ $isRegister = $mode === 'register';
 $title      = t($isRegister ? 'title_register' : 'title_signin');
 require __DIR__ . '/_header.php';
 $switchUrl  = base_path() . ($isRegister ? '/login' : '/register');
+// Forward `next` + `plan` (set by landing pricing CTAs) so the
+// upgrade chain survives a register↔login bounce.
+$forward = array_intersect_key($_GET, array_flip(['next', 'plan', 'currency']));
+if ($forward) $switchUrl .= '?' . http_build_query($forward);
+$verifyHref = base_path() . '/verify' . ($forward ? '?' . http_build_query($forward) : '');
 ?>
   <div class="shell">
     <header class="topbar">
@@ -58,7 +63,11 @@ $switchUrl  = base_path() . ($isRegister ? '/login' : '/register');
       <?php endif; ?>
 
       <p class="auth-aux" style="margin-top:18px;font-size:13px;opacity:.75;">
-        <a href="<?= base_path() ?>/verify"><?= t('aux_verify_link') ?></a>
+        <?php if (!$isRegister): ?>
+        <a href="<?= base_path() ?>/forgot"><?= t('forgot_link') ?></a>
+        &nbsp;&middot;&nbsp;
+        <?php endif; ?>
+        <a href="<?= e($verifyHref) ?>"><?= t('aux_verify_link') ?></a>
       </p>
     </main>
   </div>

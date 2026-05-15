@@ -1,4 +1,4 @@
-import { api, url, bindThemeToggle, toast } from './common.js';
+import { api, url, bindThemeToggle, toast, chainUpgradeOrApp } from './common.js';
 
 for (const a of document.querySelectorAll('[data-base-link]')) {
   a.href = url(a.dataset.baseLink);
@@ -80,11 +80,18 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
     });
 
     if (isRegister && res.pending) {
-      // Code sent — go enter it.
-      location.href = url('/verify') + '?email=' + encodeURIComponent(res.email);
+      // Code sent — go enter it. Carry over any query params (e.g. an
+      // `next=upgrade&plan=yearly` set by the landing pricing CTAs) so
+      // /verify can chain into Stripe Checkout after success.
+      const qs = new URLSearchParams(location.search);
+      qs.set('email', res.email);
+      location.href = url('/verify') + '?' + qs.toString();
       return;
     }
-    location.href = url('/app');
+    // Successful direct login (no email verification needed). Same
+    // upgrade-chain logic as /verify so an existing user who clicked
+    // "Choose Pro" on the landing lands in Stripe Checkout, not /app.
+    await chainUpgradeOrApp();
   } catch (err) {
     const msg = errorMessages[err.message] || L.err_generic;
     errorEl.textContent = msg;

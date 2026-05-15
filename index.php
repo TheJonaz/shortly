@@ -19,6 +19,7 @@ require __DIR__ . '/lib/ratelimit.php';
 require __DIR__ . '/lib/security_headers.php';
 require __DIR__ . '/lib/email.php';
 require __DIR__ . '/lib/registration.php';
+require __DIR__ . '/lib/password_reset.php';
 require __DIR__ . '/lib/tier.php';
 require __DIR__ . '/lib/tags.php';
 require __DIR__ . '/lib/apikeys.php';
@@ -98,6 +99,16 @@ function route(string $method, string $path): void {
         render_view('verify', ['email' => (string) ($_GET['email'] ?? '')]);
         return;
     }
+    if ($path === '/forgot' && $method === 'GET') { render_view('forgot'); return; }
+    if ($path === '/reset' && $method === 'GET') {
+        // Pre-validate the token server-side so we can render a clean
+        // "expired/invalid" page instead of letting the user type into a
+        // form that will only 410 on submit.
+        $tok = (string) ($_GET['token'] ?? '');
+        $status = $tok === '' ? 'invalid_token' : password_reset_token_status($tok);
+        render_view('reset', ['token' => $tok, 'token_status' => $status]);
+        return;
+    }
     if ($path === '/app' && $method === 'GET') {
         if (!auth_current_user()) {
             header('Location: ' . public_url() . '/login');
@@ -106,6 +117,7 @@ function route(string $method, string $path): void {
         render_view('dashboard');
         return;
     }
+    if ($path === '/upgrade' && $method === 'GET') { handle_upgrade_redirect(); return; }
     if ($path === '/app/bio' && $method === 'GET') {
         if (!auth_current_user()) {
             header('Location: ' . public_url() . '/login');
@@ -171,6 +183,8 @@ function route(string $method, string $path): void {
     if ($path === '/api/auth/resend'   && $method === 'POST') { api_resend(); return; }
     if ($path === '/api/auth/login'    && $method === 'POST') { api_login(); return; }
     if ($path === '/api/auth/logout'   && $method === 'POST') { api_logout(); return; }
+    if ($path === '/api/auth/forgot'   && $method === 'POST') { api_forgot(); return; }
+    if ($path === '/api/auth/reset'    && $method === 'POST') { api_reset();  return; }
 
     if ($path === '/api/links'   && $method === 'POST') { api_create_link(); return; }
     if ($path === '/api/shorten' && $method === 'POST') { api_create_link(); return; }
@@ -280,6 +294,51 @@ function api_verify(): void {
     $sess = auth_create_session((int) $user['id']);
     auth_set_cookie($sess['token'], $sess['expires']);
     json_response(['user' => $user]);
+}
+
+function api_forgot(): void {
+    // Same per-IP cap as register so the endpoint can't be turned into an
+    // email mailbomb. Per-email cap inside password_reset_request() (via
+    // the DELETE … WHERE used_at IS NULL) makes the second-in-a-minute
+    // request cheap on the inbox side.
+    $ip = client_ip() ?? 'unknown';
+    rate_limit_or_429('forgot:ip:' . $ip, 5, 3600);
+
+    $b = read_json_body();
+    $email = strtolower(trim((string) ($b['email'] ?? '')));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) json_error('invalid_email', 400);
+
+    // Per-email cap on top of the per-IP one. Catches the "attacker scrapes
+    // a leaked email list and POSTs forgot for each" case from many IPs.
+    rate_limit_or_429('forgot:email:' . $email, 3, 3600);
+
+    // Always 200, regardless of whether the email exists — leaking
+    // existence to anonymous POSTers is the whole reason a separate forgot
+    // endpoint exists in the first place.
+    password_reset_request($email);
+    json_response(['ok' => true]);
+}
+
+function api_reset(): void {
+    // Lighter rate limit than forgot — this just verifies a token we
+    // already issued, no outbound mail. The 64-char token's brute-force
+    // surface is already negligible.
+    $ip = client_ip() ?? 'unknown';
+    rate_limit_or_429('reset:ip:' . $ip, 20, 600);
+
+    $b = read_json_body();
+    $token    = (string) ($b['token'] ?? '');
+    $password = (string) ($b['password'] ?? '');
+    if (strlen($password) < 8) json_error('weak_password', 400);
+
+    try {
+        password_reset_consume($token, $password);
+    } catch (RuntimeException $e) {
+        // 'invalid_token' / 'expired' / 'already_used' — all single-string
+        // codes so the client can map them to localized messages.
+        json_error($e->getMessage(), 410);
+    }
+    json_response(['ok' => true]);
 }
 
 function api_resend(): void {
@@ -552,6 +611,39 @@ function api_revoke_key(int $keyId): void {
     if (($u['auth'] ?? null) === 'apikey') json_error('session_required', 401);
     if (!apikey_revoke((int) $u['id'], $keyId)) json_error('not_found', 404);
     json_response(['ok' => true]);
+}
+
+// Single entry point used by the landing pricing CTAs. Bounces anonymous
+// visitors through /register (preserving the plan), starts Stripe Checkout
+// for signed-in free users, and skips Pro users back to /app.
+function handle_upgrade_redirect(): void {
+    $plan = (string) ($_GET['plan'] ?? '');
+    if (!in_array($plan, ['monthly', 'yearly'], true)) {
+        header('Location: ' . public_url() . '/');
+        exit;
+    }
+    $currency = (string) ($_GET['currency'] ?? detect_currency());
+    if (!in_array($currency, CURRENCIES, true)) $currency = detect_currency();
+
+    $u = auth_current_user();
+    if (!$u) {
+        $qs = http_build_query(['next' => 'upgrade', 'plan' => $plan, 'currency' => $currency]);
+        header('Location: ' . public_url() . '/register?' . $qs);
+        exit;
+    }
+    if (tier_of($u) === 'pro') {
+        header('Location: ' . public_url() . '/app');
+        exit;
+    }
+    try {
+        $url = billing_start_checkout($u, $plan, $currency);
+    } catch (Throwable $e) {
+        error_log('[shortly:upgrade] start failed: ' . $e->getMessage());
+        header('Location: ' . public_url() . '/app?upgrade_error=1');
+        exit;
+    }
+    header('Location: ' . $url);
+    exit;
 }
 
 function api_billing_checkout(): void {

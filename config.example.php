@@ -108,6 +108,12 @@ return [
     // ─── Footer (entirely optional) ───────────────────────────────────────
     // The footer template renders whatever you put here. Drop the whole
     // 'footer' key to get a minimal "report / consent / © year" footer.
+    //
+    // Any string-valued field (brand_tagline, column headings, link labels,
+    // contact lines, copyright, legal_line) can be a plain string OR a
+    // per-language array like ['sv' => 'Tjänster', 'en' => 'Services'].
+    // The footer resolves it against the active language with English
+    // fallback.
     'footer' => [
         'brand_name'    => 'shortly',
         'brand_tagline' => '',

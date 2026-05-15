@@ -1,7 +1,8 @@
 <?php
 /** Render the theme-toggle pill button + a tiny inline click handler.
- *  Self-contained: doesn't depend on any JS module loading.
- *  CSS shows the correct icon+label based on <html data-theme>. */
+ *  Self-contained: works without any JS module loading (the inline
+ *  script below carries the CSP nonce). CSS shows the correct
+ *  icon+label based on <html data-theme>. */
 $extra_class = $extra_class ?? '';
 ?>
 <button class="theme-toggle<?= $extra_class ? ' ' . e($extra_class) : '' ?>" id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Byt tema">
@@ -14,3 +15,17 @@ $extra_class = $extra_class ?? '';
     <span class="label">Ljust</span>
   </span>
 </button>
+<script nonce="<?= e(csp_nonce()) ?>">
+  // Inline so the toggle keeps working even if the page's module bundle
+  // fails to load or hasn't been wired with bindThemeToggle().
+  (function () {
+    var btn = document.getElementById('theme-toggle');
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('shortly.theme', next); } catch (e) {}
+    });
+  })();
+</script>

@@ -1,4 +1,4 @@
-import { api, url, bindThemeToggle, toast } from './common.js';
+import { api, url, bindThemeToggle, toast, chainUpgradeOrApp } from './common.js';
 
 bindThemeToggle(document.getElementById('theme-toggle'));
 
@@ -66,7 +66,7 @@ form.addEventListener('submit', async (e) => {
       method: 'POST',
       body: JSON.stringify({ email, code }),
     });
-    location.href = url('/app');
+    await chainUpgradeOrApp();
   } catch (err) {
     showError(errorMessages[err.message] || L.err_generic);
     submitEl.disabled = false;

@@ -7,15 +7,29 @@
  * a minimal footer with just the report link and consent reset is shown.
  */
 $footer = (array) (config()['footer'] ?? []);
-$brandName    = (string) ($footer['brand_name']    ?? '');
-$brandTagline = (string) ($footer['brand_tagline'] ?? '');
-$columns      = (array)  ($footer['columns']       ?? []);
-$contactLines = (array)  ($footer['contact_lines'] ?? []);
-$copyright    = (string) ($footer['copyright']     ?? ('© ' . date('Y')));
+
+// Resolve a possibly-localized config value. Strings pass through; arrays
+// like ['sv' => 'Tjänster', 'en' => 'Services'] return the entry matching
+// the current $GLOBALS['LANG'] with English fallback. Keeps the config
+// schema backward-compatible: plain strings work as before.
+$tr = function ($v): string {
+    if (is_array($v)) {
+        $lang = $GLOBALS['LANG'] ?? 'en';
+        return (string) ($v[$lang] ?? $v['en'] ?? reset($v) ?: '');
+    }
+    return (string) $v;
+};
+
+$brandName    = $tr($footer['brand_name']    ?? '');
+$brandTagline = $tr($footer['brand_tagline'] ?? '');
+$columns      = (array) ($footer['columns']       ?? []);
+$contactLines = (array) ($footer['contact_lines'] ?? []);
+$copyright    = $tr($footer['copyright']     ?? ('© ' . date('Y')));
 $version      = (string) ($footer['version']       ?? '');
 $logoSvg      = (string) ($footer['logo_svg']      ?? '');
 $bisBadge     = (string) ($footer['bis_badge']     ?? '');  // path to "Based In Sweden" image; empty = hide
 $bisHref      = (string) ($footer['bis_href']      ?? 'https://www.basedinsweden.se');
+$legalLine    = $tr($footer['legal_line']    ?? '');
 ?>
   <footer class="thern-footer">
     <div class="foot-inner">
@@ -42,10 +56,11 @@ $bisHref      = (string) ($footer['bis_href']      ?? 'https://www.basedinsweden
 
       <?php foreach ($columns as $col): ?>
       <div class="foot-col">
-        <?php if (!empty($col['heading'])): ?><h5><?= e((string) $col['heading']) ?></h5><?php endif; ?>
+        <?php $heading = $tr($col['heading'] ?? ''); ?>
+        <?php if ($heading !== ''): ?><h5><?= e($heading) ?></h5><?php endif; ?>
         <?php foreach ((array) ($col['links'] ?? []) as $link):
             $href = (string) ($link['href'] ?? '#');
-            $label = (string) ($link['label'] ?? '');
+            $label = $tr($link['label'] ?? '');
             if ($label === '') continue;
         ?>
         <a href="<?= e($href) ?>"><?= e($label) ?></a>
@@ -58,6 +73,7 @@ $bisHref      = (string) ($footer['bis_href']      ?? 'https://www.basedinsweden
         <h5><?= t('foot_con_head') ?></h5>
         <ul>
           <?php foreach ($contactLines as $line): ?>
+          <?php $line = is_array($line) ? $tr($line) : $line; ?>
           <li><?= $line /* trusted: lines come from config.php and may include mailto: anchors */ ?></li>
           <?php endforeach; ?>
         </ul>
@@ -82,8 +98,8 @@ $bisHref      = (string) ($footer['bis_href']      ?? 'https://www.basedinsweden
           <a href="#" id="consent-reset"><?= t('consent_reset') ?></a>
         </span>
       </div>
-      <?php if (!empty($footer['legal_line'])): ?>
-      <div class="foot-bottom-right"><?= e((string) $footer['legal_line']) ?></div>
+      <?php if ($legalLine !== ''): ?>
+      <div class="foot-bottom-right"><?= e($legalLine) ?></div>
       <?php endif; ?>
     </div>
   </footer>

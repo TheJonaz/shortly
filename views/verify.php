@@ -3,6 +3,10 @@
 $email = $email ?? '';
 $title = t('title_verify');
 require __DIR__ . '/_header.php';
+// Forward upgrade-intent params to the "register" aux link too, so a user
+// who bounces back to register doesn't lose their plan choice.
+$forward = array_intersect_key($_GET, array_flip(['next', 'plan', 'currency']));
+$registerHref = base_path() . '/register' . ($forward ? '?' . http_build_query($forward) : '');
 ?>
   <div class="shell">
     <header class="topbar">
@@ -42,7 +46,7 @@ require __DIR__ . '/_header.php';
       <p class="auth-aux" style="margin-top:18px;font-size:13px;opacity:.75;">
         <a href="#" id="resend-link"><?= t('verify_resend') ?></a>
         &nbsp;&middot;&nbsp;
-        <a href="<?= base_path() ?>/register"><?= t('btn_register') ?></a>
+        <a href="<?= e($registerHref) ?>"><?= t('btn_register') ?></a>
       </p>
     </main>
   </div>

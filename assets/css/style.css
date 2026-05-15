@@ -601,6 +601,17 @@ code, kbd { font-family: var(--mono); font-size: .9em; }
 }
 .auth-error.show { display: block; }
 [data-theme="dark"] .auth-error { background: var(--accent-soft); color: var(--ink); }
+.auth-info {
+  background: rgba(15, 212, 160, 0.10);
+  color: var(--ink);
+  border-left: 3px solid var(--accent-mint);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  display: none;
+}
+.auth-info.show { display: block; }
+[data-theme="dark"] .auth-info { background: rgba(15, 212, 160, 0.12); color: var(--ink); }
 
 /* ─── dashboard ─────────────────────────────────────────────────────── */
 .dash-head {

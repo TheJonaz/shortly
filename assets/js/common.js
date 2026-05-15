@@ -37,7 +37,11 @@ export function initTheme() {
   applyTheme(saved || 'light');
 }
 export function bindThemeToggle(btn) {
-  if (!btn) return;
+  if (!btn || btn.dataset.bound) return;
+  // _theme_toggle.php ships its own inline click handler and marks the
+  // button as bound; this guard prevents a second listener firing on
+  // every click (two toggles cancel out and the theme looks stuck).
+  btn.dataset.bound = '1';
   btn.addEventListener('click', () => {
     applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
   });
@@ -87,6 +91,33 @@ export async function copyText(text) {
     toast('Copy failed', 'error');
     return false;
   }
+}
+
+// ─── post-auth landing ──────────────────────────────────────────────
+// After /login or /verify succeeds, optionally chain straight into
+// Stripe Checkout if the URL still carries the `next=upgrade&plan=…`
+// hints set by a "Choose Pro" CTA on the landing page. Falls back to
+// /app if no upgrade is wanted or the checkout call fails — never
+// strands the user mid-flow.
+export async function chainUpgradeOrApp() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('next') === 'upgrade') {
+    const plan = params.get('plan');
+    if (plan === 'monthly' || plan === 'yearly') {
+      try {
+        const currency = window.CURRENCY || 'sek';
+        const r = await api('/api/billing/checkout', {
+          method: 'POST',
+          body: JSON.stringify({ plan, currency }),
+        });
+        location.href = r.url;
+        return;
+      } catch {
+        // Fall through to /app — user can retry the upgrade from there.
+      }
+    }
+  }
+  location.href = url('/app');
 }
 
 // ─── boot ───────────────────────────────────────────────────────────

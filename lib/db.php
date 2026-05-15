@@ -238,6 +238,22 @@ function db_migrate(PDO $pdo, string $driver): void {
         )
     ");
 
+    // Password reset tokens. token_hash is sha256(token + salt) — we never
+    // store the raw token, only its hash, so a DB leak doesn't grant resets.
+    // One row per request; used_at != NULL marks it consumed so the link in
+    // the email is one-shot.
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id          $autoinc,
+            user_id     $bigint NOT NULL,
+            token_hash  $hash NOT NULL UNIQUE,
+            created_at  $bigint NOT NULL,
+            expires_at  $bigint NOT NULL,
+            used_at     $bigint NULL
+        )
+    ");
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id)"); } catch (PDOException $e) {}
+
     // Indexes (CREATE INDEX IF NOT EXISTS works on both engines from MySQL 8 / MariaDB 10.3+).
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_links_user ON links(user_id)"); } catch (PDOException $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_clicks_link ON clicks(link_id)"); } catch (PDOException $e) {}
