@@ -35,9 +35,16 @@ require __DIR__ . '/lib/safebrowsing.php';
 // further down still work — header() just queues until output starts.
 send_security_headers();
 
-// Handle language switch (?lang=sv or ?lang=en)
+// Handle language / currency switch (?lang=sv or ?currency=sek).
+// Both follow the same cookie-then-redirect pattern.
+$prefSwitch = null;
 if (isset($_GET['lang']) && in_array($_GET['lang'], ['sv', 'en'], true)) {
-    setcookie('lang', $_GET['lang'], [
+    $prefSwitch = ['lang', $_GET['lang']];
+} elseif (isset($_GET['currency']) && in_array($_GET['currency'], CURRENCIES, true)) {
+    $prefSwitch = ['currency', $_GET['currency']];
+}
+if ($prefSwitch !== null) {
+    setcookie($prefSwitch[0], $prefSwitch[1], [
         'expires'  => time() + 60 * 60 * 24 * 365,
         'path'     => '/',
         'samesite' => 'Lax',
@@ -55,6 +62,7 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['sv', 'en'], true)) {
     exit;
 }
 set_lang(detect_lang());
+set_currency(detect_currency());
 
 auth_clean_expired_sessions();
 
@@ -552,8 +560,12 @@ function api_billing_checkout(): void {
     if (($u['auth'] ?? null) === 'apikey') json_error('session_required', 401);
     $b = read_json_body();
     $plan = (string) ($b['plan'] ?? '');
+    // Currency comes from the JSON body (set by the UI selector) so the
+    // checkout call doesn't depend on a cookie surviving the round-trip; fall
+    // back to the cookie-derived default if the client omitted it.
+    $currency = (string) ($b['currency'] ?? detect_currency());
     try {
-        $url = billing_start_checkout($u, $plan);
+        $url = billing_start_checkout($u, $plan, $currency);
     } catch (InvalidArgumentException $e) {
         json_error($e->getMessage(), 400);
     } catch (RuntimeException $e) {

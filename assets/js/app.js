@@ -98,9 +98,9 @@ async function bootstrap() {
 const BL = window.LANG === 'sv' ? {
   upgrade_h:    'Uppgradera till Pro',
   upgrade_sub:  'Få avancerad statistik, redigerbara länkar, lösenordsskydd, anpassad utgång, bulk-uppladdning och mer.',
-  monthly:      '5 USD / månad',
-  yearly:       '50 USD / år',
   save:         'Spara 17%',
+  per_month:    '/ månad',
+  per_year:     '/ år',
   btn_monthly:  'Välj månadsplan',
   btn_yearly:   'Välj årsplan',
   pro_h:        'Du är Pro ✓',
@@ -116,9 +116,9 @@ const BL = window.LANG === 'sv' ? {
 } : {
   upgrade_h:    'Upgrade to Pro',
   upgrade_sub:  'Get advanced analytics, editable links, password protection, custom expiry, bulk upload and more.',
-  monthly:      '$5 / month',
-  yearly:       '$50 / year',
   save:         'Save 17%',
+  per_month:    '/ month',
+  per_year:     '/ year',
   btn_monthly:  'Choose monthly',
   btn_yearly:   'Choose yearly',
   pro_h:        'You are Pro ✓',
@@ -131,6 +131,14 @@ const BL = window.LANG === 'sv' ? {
   canceled:     'Upgrade canceled.',
   err_unavail:  'Billing is unavailable right now.',
   err_generic:  'Something went wrong.',
+};
+
+// Display prices per currency. Stripe charges the matching `currency_options`
+// entry on the Price; these strings must stay in sync with Dashboard values.
+const PRICES = {
+  sek: { monthly: '49 kr',  yearly: '490 kr'  },
+  eur: { monthly: '€4,99',  yearly: '€49'     },
+  usd: { monthly: '$5',     yearly: '$50'     },
 };
 
 async function loadBilling(tier) {
@@ -148,19 +156,21 @@ async function loadBilling(tier) {
 }
 
 function renderUpgradeCTA() {
+  const cur = PRICES[window.CURRENCY] ? window.CURRENCY : 'sek';
+  const p = PRICES[cur];
   billingEl.innerHTML = `
     <h3 style="margin:0 0 8px;font-size:18px;">${BL.upgrade_h}</h3>
     <p class="muted" style="margin:0 0 18px;">${BL.upgrade_sub}</p>
     <div style="display:flex;gap:12px;flex-wrap:wrap;">
       <div style="flex:1 1 220px;padding:16px;border:1px solid var(--rule,#ddd);border-radius:10px;">
         <div style="font-size:14px;opacity:.7;">Monthly</div>
-        <div style="font-size:24px;font-weight:500;margin:4px 0 12px;">${BL.monthly}</div>
+        <div style="font-size:24px;font-weight:500;margin:4px 0 12px;">${p.monthly} <span style="font-size:14px;opacity:.6;">${BL.per_month}</span></div>
         <button class="btn primary" data-plan="monthly">${BL.btn_monthly}</button>
       </div>
       <div style="flex:1 1 220px;padding:16px;border:1px solid var(--rule,#ddd);border-radius:10px;position:relative;">
         <div style="position:absolute;top:-10px;right:12px;font-size:11px;background:var(--accent,#181613);color:var(--accent-ink,#fff);padding:2px 8px;border-radius:8px;">${BL.save}</div>
         <div style="font-size:14px;opacity:.7;">Yearly</div>
-        <div style="font-size:24px;font-weight:500;margin:4px 0 12px;">${BL.yearly}</div>
+        <div style="font-size:24px;font-weight:500;margin:4px 0 12px;">${p.yearly} <span style="font-size:14px;opacity:.6;">${BL.per_year}</span></div>
         <button class="btn primary" data-plan="yearly">${BL.btn_yearly}</button>
       </div>
     </div>
@@ -191,8 +201,9 @@ function renderProBilling(st) {
 async function startCheckout(plan, btn) {
   if (btn) btn.disabled = true;
   try {
+    const currency = PRICES[window.CURRENCY] ? window.CURRENCY : 'sek';
     const res = await api('/api/billing/checkout', {
-      method: 'POST', body: JSON.stringify({ plan }),
+      method: 'POST', body: JSON.stringify({ plan, currency }),
     });
     location.href = res.url;
   } catch (err) {

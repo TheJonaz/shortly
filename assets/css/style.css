@@ -187,6 +187,8 @@ code, kbd { font-family: var(--mono); font-size: .9em; }
 }
 .lang-btn:hover  { opacity: 0.85; }
 .lang-btn.active { opacity: 1; }
+.lang-btn.cur-btn { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; padding: 4px 5px; }
+.lang-sep { opacity: 0.35; padding: 0 4px; font-size: 0.85rem; }
 
 @media (max-width: 480px) {
   .theme-toggle { padding: 0; width: 36px; justify-content: center; }

@@ -29,6 +29,7 @@ $base        = public_url();
       } catch (e) { document.documentElement.dataset.theme = 'light'; }
     })();
     window.LANG = '<?= htmlspecialchars($GLOBALS['LANG'] ?? 'en', ENT_QUOTES) ?>';
+    window.CURRENCY = '<?= htmlspecialchars($GLOBALS['CURRENCY'] ?? 'sek', ENT_QUOTES) ?>';
   </script>
 </head>
 <body<?= $bodyClass ? ' class="' . e($bodyClass) . '"' : '' ?>>

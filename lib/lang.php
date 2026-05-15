@@ -15,6 +15,23 @@ function set_lang(string $lang): void {
     $GLOBALS['LANG'] = $lang;
 }
 
+const CURRENCIES = ['sek', 'eur', 'usd'];
+
+// Visitor-selected billing currency. Cookie-set via ?currency= in index.php,
+// rendered in views/_lang_switch.php, and forwarded to Stripe Checkout so
+// the session is denominated in the matching currency. Default SEK because
+// Klarna recurring requires SEK or EUR and the primary market is Swedish.
+function detect_currency(): string {
+    if (!empty($_COOKIE['currency']) && in_array($_COOKIE['currency'], CURRENCIES, true)) {
+        return $_COOKIE['currency'];
+    }
+    return 'sek';
+}
+
+function set_currency(string $cur): void {
+    $GLOBALS['CURRENCY'] = $cur;
+}
+
 function t(string $key, string ...$args): string {
     $lang = $GLOBALS['LANG'] ?? 'en';
     static $strings = null;
@@ -108,10 +125,9 @@ function lang_strings(): array {
             'nav_bio'              => 'Bio',
             'nav_keys'             => 'API',
             // Billing (sv)
+            'billing_curr_label'   => 'Valuta',
             'billing_upgrade_h'    => 'Uppgradera till Pro',
             'billing_upgrade_sub'  => 'Få avancerad statistik, redigerbara länkar, lösenordsskydd, anpassad utgång, bulk-uppladdning och mer.',
-            'billing_monthly'      => '5 USD / månad',
-            'billing_yearly'       => '50 USD / år',
             'billing_yearly_save'  => 'Spara 17%',
             'billing_btn_monthly'  => 'Välj månadsplan',
             'billing_btn_yearly'   => 'Välj årsplan',
@@ -286,10 +302,9 @@ function lang_strings(): array {
             'nav_bio'              => 'Bio',
             'nav_keys'             => 'API',
             // Billing (en)
+            'billing_curr_label'   => 'Currency',
             'billing_upgrade_h'    => 'Upgrade to Pro',
             'billing_upgrade_sub'  => 'Get advanced analytics, editable links, password protection, custom expiry, bulk upload and more.',
-            'billing_monthly'      => '$5 / month',
-            'billing_yearly'       => '$50 / year',
             'billing_yearly_save'  => 'Save 17%',
             'billing_btn_monthly'  => 'Choose monthly',
             'billing_btn_yearly'   => 'Choose yearly',

@@ -89,9 +89,13 @@ function stripe_request(string $method, string $path, array $params = []): array
 
 // Higher-level helpers — keep call sites in lib/billing.php tidy.
 
-function stripe_create_checkout_session(string $priceId, string $customerEmail, int $userId, string $successUrl, string $cancelUrl, ?string $existingCustomerId): array {
+function stripe_create_checkout_session(string $priceId, string $currency, string $customerEmail, int $userId, string $successUrl, string $cancelUrl, ?string $existingCustomerId): array {
+    // `currency` tells Stripe which entry of the Price's currency_options to
+    // charge in. Klarna is only offered when the session currency matches a
+    // Klarna-supported region (sek/eur); usd sessions fall back to cards.
     $params = [
         'mode'                          => 'subscription',
+        'currency'                      => $currency,
         'line_items[0][price]'          => $priceId,
         'line_items[0][quantity]'       => 1,
         'success_url'                   => $successUrl,

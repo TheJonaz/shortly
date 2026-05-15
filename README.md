@@ -78,6 +78,24 @@ for the full schema. The interesting toggles:
 | `safebrowsing_api_key` | Google Safe Browsing v4 lookup at link-create time.             |
 | `footer`               | Brand, columns, contact lines. Drop the key for a minimal footer. |
 
+### Stripe billing (Pro tier + Klarna)
+
+`/api/billing/checkout` sends `currency` (`sek` / `eur` / `usd`) on the
+session so visitors are charged in their selected currency. To make that
+work end-to-end:
+
+1. In the Stripe Dashboard, create one `Price` per plan (monthly + yearly).
+2. On each Price, add **currency_options** entries for the currencies you
+   want to offer. Without this Stripe rejects the session with
+   `currency not enabled on price`.
+3. Under **Settings → Payment methods**, enable **Klarna**. Stripe will
+   surface it automatically on Checkout sessions whose currency matches a
+   Klarna-supported region (SEK / EUR). USD sessions fall back to cards —
+   Klarna recurring is not offered in USD.
+
+The visible currency picker lives next to the language flag in the header
+and writes a `currency` cookie consumed by `lib/lang.php::detect_currency`.
+
 ## Deployment
 
 shortly is just PHP files — copy them to your web root, point Apache or

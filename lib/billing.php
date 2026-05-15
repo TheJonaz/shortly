@@ -50,10 +50,13 @@ function billing_plan_for_price(?string $priceId): ?string {
 
 // Start a checkout. Returns the URL for the JS to redirect to. The user must
 // be signed in (anonymous can't subscribe to anything yet).
-function billing_start_checkout(array $user, string $plan): string {
+// $currency selects which entry of the Price's currency_options to charge in
+// (and gates Klarna availability — see stripe_create_checkout_session).
+function billing_start_checkout(array $user, string $plan, string $currency): string {
     if (!billing_is_configured()) throw new RuntimeException('billing_unavailable');
     $priceId = billing_price_for_plan($plan);
     if (!$priceId) throw new InvalidArgumentException('invalid_plan');
+    if (!in_array($currency, CURRENCIES, true)) throw new InvalidArgumentException('invalid_currency');
 
     $base = public_url();
     $successUrl = $base . '/app?upgraded=1';
@@ -64,6 +67,7 @@ function billing_start_checkout(array $user, string $plan): string {
 
     $session = stripe_create_checkout_session(
         $priceId,
+        $currency,
         (string) $user['email'],
         (int) $user['id'],
         $successUrl,
