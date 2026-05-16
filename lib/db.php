@@ -221,6 +221,10 @@ function db_migrate(PDO $pdo, string $driver): void {
     // and reused for billing portal sessions thereafter.
     $stripeId = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(80)';
     try { $pdo->exec("ALTER TABLE users ADD COLUMN stripe_customer_id $stripeId NULL"); } catch (PDOException $e) {}
+    // PayPal subscription id on users — same role as stripe_customer_id but
+    // PayPal doesn't have a separate "customer" concept; the subscription id
+    // IS the durable handle we use for portal/cancel calls.
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN paypal_subscription_id $stripeId NULL"); } catch (PDOException $e) {}
     // One subscription row per user (MVP). users.tier is the source of
     // access truth — this table is the audit log that backs the management UI.
     $subStatus = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(40)';
@@ -237,6 +241,11 @@ function db_migrate(PDO $pdo, string $driver): void {
             updated_at              $bigint NOT NULL
         )
     ");
+    // Provider column — 'stripe' for existing rows, 'paypal' for ones
+    // created by lib/paypal.php. The stripe_subscription_id column also
+    // doubles as the paypal subscription id when provider='paypal'; the
+    // column name is historical and lifting it costs more than carrying it.
+    try { $pdo->exec("ALTER TABLE subscriptions ADD COLUMN provider TEXT NOT NULL DEFAULT 'stripe'"); } catch (PDOException $e) {}
 
     // Password reset tokens. token_hash is sha256(token + salt) — we never
     // store the raw token, only its hash, so a DB leak doesn't grant resets.

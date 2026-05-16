@@ -25,6 +25,7 @@ require __DIR__ . '/lib/tags.php';
 require __DIR__ . '/lib/apikeys.php';
 require __DIR__ . '/lib/bio.php';
 require __DIR__ . '/lib/stripe.php';
+require __DIR__ . '/lib/paypal.php';
 require __DIR__ . '/lib/billing.php';
 require __DIR__ . '/lib/devices.php';
 require __DIR__ . '/lib/blocklist.php';
@@ -234,10 +235,13 @@ function route(string $method, string $path): void {
     if ($path === '/api/keys' && $method === 'POST') { api_create_key(); return; }
     if (preg_match('#^/api/keys/(\d+)$#', $path, $m) && $method === 'DELETE') { api_revoke_key((int) $m[1]); return; }
 
-    if ($path === '/api/billing/checkout' && $method === 'POST') { api_billing_checkout(); return; }
-    if ($path === '/api/billing/portal'   && $method === 'POST') { api_billing_portal();   return; }
-    if ($path === '/api/billing/status'   && $method === 'GET')  { api_billing_status();   return; }
-    if ($path === '/api/webhooks/stripe'  && $method === 'POST') { api_stripe_webhook();   return; }
+    if ($path === '/api/billing/checkout'        && $method === 'POST') { api_billing_checkout();        return; }
+    if ($path === '/api/billing/paypal/checkout' && $method === 'POST') { api_billing_paypal_checkout(); return; }
+    if ($path === '/api/billing/portal'          && $method === 'POST') { api_billing_portal();          return; }
+    if ($path === '/api/billing/cancel'          && $method === 'POST') { api_billing_cancel();          return; }
+    if ($path === '/api/billing/status'          && $method === 'GET')  { api_billing_status();          return; }
+    if ($path === '/api/webhooks/stripe'         && $method === 'POST') { api_stripe_webhook();          return; }
+    if ($path === '/api/webhooks/paypal'         && $method === 'POST') { api_paypal_webhook();          return; }
 
     if (preg_match('#^/api/unlock/([A-Za-z0-9_-]{2,32})$#', $path, $m) && $method === 'POST') { api_unlock($m[1]); return; }
     if ($path === '/api/abuse'         && $method === 'POST') { api_abuse_report();   return; }
@@ -726,17 +730,61 @@ function api_billing_portal(): void {
     json_response(['url' => $url]);
 }
 
+function api_billing_paypal_checkout(): void {
+    $u = auth_require();
+    if (($u['auth'] ?? null) === 'apikey') json_error('session_required', 401);
+    $b = read_json_body();
+    $plan = (string) ($b['plan'] ?? '');
+    try {
+        $url = billing_start_paypal($u, $plan);
+    } catch (InvalidArgumentException $e) {
+        json_error($e->getMessage(), 400);
+    } catch (RuntimeException $e) {
+        error_log('[shortly:billing] paypal start failed: ' . $e->getMessage());
+        json_error('paypal_unavailable', 503);
+    }
+    json_response(['url' => $url]);
+}
+
+// Provider-aware cancel. PayPal users don't have a hosted portal — they
+// cancel through us (which calls PayPal's API). Stripe users get the
+// Customer Portal instead (richer features there).
+function api_billing_cancel(): void {
+    $u = auth_require();
+    if (($u['auth'] ?? null) === 'apikey') json_error('session_required', 401);
+    $row = db_get('SELECT provider, stripe_subscription_id FROM subscriptions WHERE user_id = ?', [$u['id']]);
+    if (!$row) json_error('no_subscription', 404);
+
+    if ($row['provider'] === 'paypal') {
+        try {
+            paypal_cancel_subscription((string) $row['stripe_subscription_id']);
+            // Don't flip tier here — let the BILLING.SUBSCRIPTION.CANCELLED
+            // webhook do it. That keeps the source-of-truth path consistent.
+        } catch (Throwable $e) {
+            error_log('[shortly:billing] paypal cancel failed: ' . $e->getMessage());
+            json_error('paypal_error', 502);
+        }
+        json_response(['ok' => true]);
+        return;
+    }
+    // Stripe path: caller should use the portal instead, but keep this as a
+    // last-ditch cancel for emergencies.
+    json_error('use_portal', 400);
+}
+
 function api_billing_status(): void {
     $u = auth_require();
     $row = db_get(
-        'SELECT status, plan, current_period_end, cancel_at_period_end
+        'SELECT provider, status, plan, current_period_end, cancel_at_period_end
          FROM subscriptions WHERE user_id = ?',
         [$u['id']]
     );
     json_response([
         'tier'              => tier_of($u),
         'billing_available' => billing_is_configured(),
+        'paypal_available'  => paypal_is_configured(),
         'subscription'      => $row ? [
+            'provider'            => $row['provider'] ?? 'stripe',
             'status'              => $row['status'],
             'plan'                => $row['plan'],
             'current_period_end'  => $row['current_period_end'] !== null
@@ -772,6 +820,36 @@ function api_stripe_webhook(): void {
         json_error('handler_error', 500);
     }
     // Stripe just needs a 2xx — body content is ignored.
+    json_response(['ok' => true]);
+}
+
+function api_paypal_webhook(): void {
+    $raw = file_get_contents('php://input', false, null, 0, 524289);
+    if ($raw === false) $raw = '';
+    if (strlen($raw) > 524288) json_error('payload_too_large', 413);
+
+    // Collect PayPal-* headers in a case-insensitive map. apache_request_headers()
+    // isn't always available under php-fpm, so fall back to $_SERVER.
+    $headers = [];
+    foreach ($_SERVER as $k => $v) {
+        if (strpos($k, 'HTTP_PAYPAL_') === 0) {
+            $name = strtolower(str_replace('_', '-', substr($k, 5)));
+            $headers[$name] = (string) $v;
+        }
+    }
+    if (!paypal_verify_webhook($raw, $headers)) {
+        json_error('invalid_signature', 400);
+    }
+    $event = json_decode($raw, true);
+    if (!is_array($event)) json_error('invalid_payload', 400);
+
+    try {
+        billing_handle_paypal_webhook($event);
+    } catch (Throwable $e) {
+        // 500 so PayPal retries — handlers are idempotent.
+        error_log('[shortly:webhook:paypal] ' . $e->getMessage() . ' (event=' . ($event['id'] ?? '?') . ')');
+        json_error('handler_error', 500);
+    }
     json_response(['ok' => true]);
 }
 

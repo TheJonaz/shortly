@@ -1051,6 +1051,43 @@ body.status-page {
   .thern-footer .foot-bottom { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
 }
 
+/* ─── upgrade panel (dashboard) ──────────────────────────────────────── */
+.upgrade-grid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.upgrade-card {
+  flex: 1 1 220px;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  position: relative;
+}
+.upgrade-card-badge {
+  position: absolute;
+  top: -10px;
+  right: 12px;
+  font-size: 11px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+.upgrade-card-label  { font-size: 14px; opacity: 0.7; }
+.upgrade-card-price  { font-size: 24px; font-weight: 500; margin: 4px 0 14px; }
+.upgrade-card-period { font-size: 14px; opacity: 0.6; }
+.upgrade-card-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upgrade-card-buttons .btn {
+  width: 100%;
+  justify-content: center;
+}
+
 /* ─── admin panel ───────────────────────────────────────────────────── */
 .admin {
   max-width: 1080px;

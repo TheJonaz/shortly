@@ -99,6 +99,32 @@ return [
     'stripe_price_monthly'  => '',
     'stripe_price_yearly'   => '',
 
+    // PayPal billing. Runs in parallel with Stripe — users pick "Pay with
+    // PayPal" on the upgrade panel and follow PayPal's approval flow.
+    // Stripe Checkout can't host PayPal subscriptions (their PayPal integration
+    // is one-time only), so this is a separate provider end-to-end.
+    //
+    // Setup at https://developer.paypal.com:
+    //   1. Create an App under "Apps & Credentials" (separate sandbox / live).
+    //      Copy the Client ID + Secret.
+    //   2. Create a Product + Plan under Subscriptions (or via the API):
+    //         Plan A: monthly, currency SEK/EUR/USD, recurring 1 month
+    //         Plan B: yearly,  same currency,        recurring 1 year
+    //      Copy each plan's id (looks like P-XXXXXXX). One plan per currency
+    //      isn't supported in PayPal — pick one currency per environment, or
+    //      create separate plans and switch via your own logic.
+    //   3. Configure a webhook on the app: URL = <public_url>/api/webhooks/paypal,
+    //      events = BILLING.SUBSCRIPTION.* (activated/updated/cancelled/expired).
+    //      Copy the webhook id.
+    //   4. Set paypal_mode = 'live' only once 1–3 are done on the LIVE app —
+    //      sandbox creds will not work against live API and vice versa.
+    'paypal_mode'           => 'sandbox',  // 'sandbox' | 'live'
+    'paypal_client_id'      => '',
+    'paypal_secret'         => '',
+    'paypal_webhook_id'     => '',
+    'paypal_plan_monthly'   => '',
+    'paypal_plan_yearly'    => '',
+
     // Cloudflare Turnstile bot challenge for anonymous link creation. Free
     // tier from https://dash.cloudflare.com → Turnstile → Add site. Both
     // required (or both blank to disable).

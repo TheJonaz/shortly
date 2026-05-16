@@ -78,6 +78,131 @@ function billing_start_checkout(array $user, string $plan, string $currency): st
     return (string) $session['url'];
 }
 
+// PayPal counterpart: start a subscription and return the approval URL.
+// PayPal uses pre-defined Plans (created in PayPal Dashboard or via API)
+// instead of Stripe's Price objects; plan ids live in config under
+// paypal_plan_{monthly,yearly}.
+function billing_start_paypal(array $user, string $plan): string {
+    if (!paypal_is_configured()) throw new RuntimeException('paypal_unavailable');
+    $planId = paypal_plan_id_for($plan);
+    if (!$planId) throw new InvalidArgumentException('invalid_plan');
+
+    $base = public_url();
+    $sub = paypal_create_subscription(
+        $planId,
+        (string) $user['email'],
+        (int) $user['id'],
+        $base . '/app?upgraded=1',
+        $base . '/app?canceled=1'
+    );
+    $url = paypal_approval_url($sub);
+    if (!$url) throw new RuntimeException('paypal_no_approval_url');
+
+    // Persist the subscription id immediately. The webhook will arrive
+    // later (after the user approves on paypal.com) and fill in status/
+    // plan/period; this row lets us recover the user-subscription mapping
+    // even if a webhook is lost.
+    if (!empty($sub['id'])) {
+        db_run('UPDATE users SET paypal_subscription_id = ? WHERE id = ?',
+            [(string) $sub['id'], (int) $user['id']]);
+    }
+    return $url;
+}
+
+// Apply a PayPal subscription state to the local subscriptions row + tier.
+// Mirrors billing_apply_subscription() (the Stripe version). The fetched
+// subscription object is the source of truth — webhooks tell us "something
+// changed", we re-fetch to get the canonical state.
+function billing_apply_paypal_subscription(int $userId, array $sub): void {
+    $now    = now_ms();
+    $status = (string) ($sub['status'] ?? 'UNKNOWN');
+    $subId  = (string) ($sub['id'] ?? '');
+    if ($subId === '') return;
+
+    $planId = (string) ($sub['plan_id'] ?? '');
+    $plan   = paypal_plan_for_id($planId);
+
+    // PayPal returns next_billing_time as ISO-8601. Convert to ms epoch
+    // to share the column type with the Stripe path.
+    $periodEnd = null;
+    $next = $sub['billing_info']['next_billing_time'] ?? null;
+    if ($next) {
+        $ts = strtotime((string) $next);
+        if ($ts) $periodEnd = $ts * 1000;
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $existing = db_get('SELECT user_id FROM subscriptions WHERE user_id = ?', [$userId]);
+        if ($existing) {
+            db_run(
+                'UPDATE subscriptions SET stripe_subscription_id = ?, provider = ?,
+                        status = ?, plan = ?, current_period_end = ?,
+                        cancel_at_period_end = ?, updated_at = ?
+                 WHERE user_id = ?',
+                [$subId, 'paypal', strtolower($status), $plan, $periodEnd,
+                 in_array($status, ['CANCELLED','SUSPENDED','EXPIRED'], true) ? 1 : 0,
+                 $now, $userId]
+            );
+        } else {
+            db_run(
+                'INSERT INTO subscriptions (user_id, stripe_subscription_id, provider, status, plan,
+                        current_period_end, cancel_at_period_end, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$userId, $subId, 'paypal', strtolower($status), $plan, $periodEnd, 0, $now, $now]
+            );
+        }
+        $newTier = paypal_status_grants_pro($status) ? 'pro' : 'free';
+        db_run('UPDATE users SET tier = ? WHERE id = ?', [$newTier, $userId]);
+        if ($newTier === 'pro') {
+            db_run(
+                'UPDATE links SET expires_at = NULL, expires_auto = 0
+                 WHERE user_id = ? AND expires_auto = 1',
+                [$userId]
+            );
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// Dispatch a webhook event from PayPal. Signature must already be verified.
+function billing_handle_paypal_webhook(array $event): void {
+    $type     = (string) ($event['event_type'] ?? '');
+    $resource = $event['resource'] ?? [];
+    if (!is_array($resource)) return;
+
+    // Only billing-subscription events change tier state. Payment-sale
+    // events ("PAYMENT.SALE.COMPLETED") are informational here — we'd
+    // already have flipped tier to Pro on the ACTIVATED event.
+    if (!str_starts_with($type, 'BILLING.SUBSCRIPTION.')) return;
+
+    // `custom_id` was the user.id we stuffed into the create payload.
+    $userId = isset($resource['custom_id']) ? (int) $resource['custom_id'] : 0;
+    if (!$userId) {
+        // Some BILLING.SUBSCRIPTION events strip custom_id; fall back to
+        // a lookup against users.paypal_subscription_id.
+        $subId = (string) ($resource['id'] ?? '');
+        if ($subId === '') return;
+        $row = db_get('SELECT id FROM users WHERE paypal_subscription_id = ?', [$subId]);
+        if (!$row) throw new RuntimeException('paypal_user_not_linked:' . $subId);
+        $userId = (int) $row['id'];
+    }
+
+    // Re-fetch authoritative state — webhook payload may be stale.
+    $subId = (string) ($resource['id'] ?? '');
+    try {
+        $fresh = paypal_get_subscription($subId);
+    } catch (Throwable $e) {
+        error_log('[shortly:paypal] webhook refetch failed for ' . $subId . ': ' . $e->getMessage());
+        $fresh = $resource;  // fall back to the payload we got
+    }
+    billing_apply_paypal_subscription($userId, $fresh);
+}
+
 // Start a billing portal session for an existing subscriber.
 function billing_start_portal(array $user): string {
     if (!billing_is_configured()) throw new RuntimeException('billing_unavailable');

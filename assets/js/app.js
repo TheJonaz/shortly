@@ -103,12 +103,16 @@ const BL = window.LANG === 'sv' ? {
   per_year:     '/ år',
   btn_monthly:  'Välj månadsplan',
   btn_yearly:   'Välj årsplan',
+  pay_card:     'Kort / Klarna',
+  pay_paypal:   'PayPal',
   pro_h:        'Du är Pro ✓',
   pro_plan:     'Plan',
   pro_renews:   'Förnyas',
   pro_cancels:  'Sägs upp vid periodens slut',
   pro_status:   'Status',
   manage:       'Hantera prenumeration',
+  cancel:       'Avsluta prenumeration',
+  cancel_confirm: 'Avsluta PayPal-prenumerationen? Pro-funktioner är kvar tills perioden går ut.',
   thanks:       'Tack — uppgraderingen är klar.',
   canceled:     'Uppgraderingen avbröts.',
   err_unavail:  'Betalning är inte tillgänglig just nu.',
@@ -121,12 +125,16 @@ const BL = window.LANG === 'sv' ? {
   per_year:     '/ year',
   btn_monthly:  'Choose monthly',
   btn_yearly:   'Choose yearly',
+  pay_card:     'Card / Klarna',
+  pay_paypal:   'PayPal',
   pro_h:        'You are Pro ✓',
   pro_plan:     'Plan',
   pro_renews:   'Renews',
   pro_cancels:  'Cancels at period end',
   pro_status:   'Status',
   manage:       'Manage subscription',
+  cancel:       'Cancel subscription',
+  cancel_confirm: 'Cancel your PayPal subscription? Pro features remain until the period ends.',
   thanks:       'Thanks — your upgrade is live.',
   canceled:     'Upgrade canceled.',
   err_unavail:  'Billing is unavailable right now.',
@@ -141,42 +149,55 @@ const PRICES = {
   usd: { monthly: '$5',     yearly: '$50'     },
 };
 
+let BILLING_STATE = null;
+
 async function loadBilling(tier) {
   let st = null;
   try { st = await api('/api/billing/status'); } catch {}
+  BILLING_STATE = st;
   if (tier === 'pro') {
     renderProBilling(st);
-  } else if (st && st.billing_available) {
-    renderUpgradeCTA();
+    return;
+  }
+  if (st && (st.billing_available || st.paypal_available)) {
+    renderUpgradeCTA(st);
   } else {
-    // Stripe not configured on this instance — hide the section entirely
-    // so we don't show a CTA that would 503 on click.
+    // Neither provider configured — hide the section entirely so we
+    // don't show a CTA that would 503 on click.
     billingEl.hidden = true;
   }
 }
 
-function renderUpgradeCTA() {
+function renderUpgradeCTA(st) {
   const cur = PRICES[window.CURRENCY] ? window.CURRENCY : 'sek';
   const p = PRICES[cur];
+  const stripeOn = !!(st && st.billing_available);
+  const paypalOn = !!(st && st.paypal_available);
+  const buttonsHtml = (plan) => {
+    const parts = [];
+    if (stripeOn) parts.push(`<button class="btn primary plan-btn" data-plan="${plan}" data-provider="stripe">${BL.pay_card}</button>`);
+    if (paypalOn) parts.push(`<button class="btn ghost   plan-btn" data-plan="${plan}" data-provider="paypal">${BL.pay_paypal}</button>`);
+    return parts.join('');
+  };
   billingEl.innerHTML = `
     <h3 style="margin:0 0 8px;font-size:18px;">${BL.upgrade_h}</h3>
     <p class="muted" style="margin:0 0 18px;">${BL.upgrade_sub}</p>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;">
-      <div style="flex:1 1 220px;padding:16px;border:1px solid var(--rule,#ddd);border-radius:10px;">
-        <div style="font-size:14px;opacity:.7;">Monthly</div>
-        <div style="font-size:24px;font-weight:500;margin:4px 0 12px;">${p.monthly} <span style="font-size:14px;opacity:.6;">${BL.per_month}</span></div>
-        <button class="btn primary" data-plan="monthly">${BL.btn_monthly}</button>
+    <div class="upgrade-grid">
+      <div class="upgrade-card">
+        <div class="upgrade-card-label">Monthly</div>
+        <div class="upgrade-card-price">${p.monthly} <span class="upgrade-card-period">${BL.per_month}</span></div>
+        <div class="upgrade-card-buttons">${buttonsHtml('monthly')}</div>
       </div>
-      <div style="flex:1 1 220px;padding:16px;border:1px solid var(--rule,#ddd);border-radius:10px;position:relative;">
-        <div style="position:absolute;top:-10px;right:12px;font-size:11px;background:var(--accent,#181613);color:var(--accent-ink,#fff);padding:2px 8px;border-radius:8px;">${BL.save}</div>
-        <div style="font-size:14px;opacity:.7;">Yearly</div>
-        <div style="font-size:24px;font-weight:500;margin:4px 0 12px;">${p.yearly} <span style="font-size:14px;opacity:.6;">${BL.per_year}</span></div>
-        <button class="btn primary" data-plan="yearly">${BL.btn_yearly}</button>
+      <div class="upgrade-card">
+        <span class="upgrade-card-badge">${BL.save}</span>
+        <div class="upgrade-card-label">Yearly</div>
+        <div class="upgrade-card-price">${p.yearly} <span class="upgrade-card-period">${BL.per_year}</span></div>
+        <div class="upgrade-card-buttons">${buttonsHtml('yearly')}</div>
       </div>
     </div>
   `;
-  billingEl.querySelectorAll('[data-plan]').forEach(btn => {
-    btn.addEventListener('click', () => startCheckout(btn.dataset.plan, btn));
+  billingEl.querySelectorAll('.plan-btn').forEach(btn => {
+    btn.addEventListener('click', () => startCheckout(btn.dataset.plan, btn.dataset.provider, btn));
   });
 }
 
@@ -186,29 +207,58 @@ function renderProBilling(st) {
     ? new Date(sub.current_period_end).toLocaleDateString()
     : '—';
   const cancelLabel = sub && sub.cancel_at_period_end ? BL.pro_cancels : BL.pro_renews;
+  const provider = (sub && sub.provider) || 'stripe';
+  // Stripe users get the hosted Customer Portal (upgrade/downgrade/method
+  // change). PayPal has no portal equivalent on Stripe's level — we offer
+  // a one-shot Cancel instead.
+  const manageButton = provider === 'paypal'
+    ? `<button class="btn ghost" id="billing-cancel">${BL.cancel}</button>`
+    : `<button class="btn ghost" id="billing-portal">${BL.manage}</button>`;
   billingEl.innerHTML = `
     <h3 style="margin:0 0 12px;font-size:18px;">${BL.pro_h}</h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;font-size:13px;margin-bottom:16px;">
-      <div><div style="opacity:.6">${BL.pro_plan}</div><div style="font-weight:500">${escapeHtml((sub && sub.plan) || '—')}</div></div>
+      <div><div style="opacity:.6">${BL.pro_plan}</div><div style="font-weight:500">${escapeHtml((sub && sub.plan) || '—')} <span class="pill faint" style="font-size:9px;margin-left:6px;">${provider}</span></div></div>
       <div><div style="opacity:.6">${BL.pro_status}</div><div style="font-weight:500">${escapeHtml((sub && sub.status) || '—')}</div></div>
       <div><div style="opacity:.6">${cancelLabel}</div><div style="font-weight:500">${renewDate}</div></div>
     </div>
-    <button class="btn ghost" id="billing-portal">${BL.manage}</button>
+    ${manageButton}
   `;
-  document.getElementById('billing-portal').addEventListener('click', startPortal);
+  const portalBtn = document.getElementById('billing-portal');
+  if (portalBtn) portalBtn.addEventListener('click', startPortal);
+  const cancelBtn = document.getElementById('billing-cancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', cancelPaypal);
 }
 
-async function startCheckout(plan, btn) {
+async function startCheckout(plan, provider, btn) {
   if (btn) btn.disabled = true;
   try {
-    const currency = PRICES[window.CURRENCY] ? window.CURRENCY : 'sek';
-    const res = await api('/api/billing/checkout', {
-      method: 'POST', body: JSON.stringify({ plan, currency }),
-    });
-    location.href = res.url;
+    if (provider === 'paypal') {
+      const res = await api('/api/billing/paypal/checkout', {
+        method: 'POST', body: JSON.stringify({ plan }),
+      });
+      location.href = res.url;
+    } else {
+      const currency = PRICES[window.CURRENCY] ? window.CURRENCY : 'sek';
+      const res = await api('/api/billing/checkout', {
+        method: 'POST', body: JSON.stringify({ plan, currency }),
+      });
+      location.href = res.url;
+    }
   } catch (err) {
     if (btn) btn.disabled = false;
-    toast(err.message === 'billing_unavailable' ? BL.err_unavail : BL.err_generic, 'error');
+    const unavailable = err.message === 'billing_unavailable' || err.message === 'paypal_unavailable';
+    toast(unavailable ? BL.err_unavail : BL.err_generic, 'error');
+  }
+}
+
+async function cancelPaypal() {
+  if (!confirm(BL.cancel_confirm)) return;
+  try {
+    await api('/api/billing/cancel', { method: 'POST' });
+    // Webhook will flip tier; reload to surface the new state.
+    location.reload();
+  } catch (err) {
+    toast(err.message || BL.err_generic, 'error');
   }
 }
 
