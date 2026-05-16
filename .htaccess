@@ -42,6 +42,13 @@ DirectoryIndex index.php
     Require all denied
 </FilesMatch>
 
+# Defense in depth: <FilesMatch> only sees the *basename*, so .git/HEAD (whose
+# basename is "HEAD") slips through the dotfile rule above. RewriteRule looks
+# at the full URL path and 403s anything traversing a .git/, .svn/, or .hg/
+# directory regardless of nesting. Matters if the deploy ever accidentally
+# uploads a VCS dir.
+RewriteRule "(?:^|/)\.(?:git|svn|hg)(?:/|$)" - [F,L]
+
 # Block source / config / shell / sqlite files from being served as text.
 <FilesMatch "(?i)\.(sqlite|sqlite3|db|env|ini|log|bak|swp|sh|conf)$">
     Require all denied

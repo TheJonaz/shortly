@@ -65,6 +65,7 @@ cd "$REMOTE_DIR"
 lcd "$LOCAL_DIR"
 
 mirror -R --verbose $DELETE_FLAG $DRY_RUN_FLAG \
+    --exclude-glob '.git/' \
     --exclude-glob '.git*' \
     --exclude-glob '.claude/' \
     --exclude-glob '.gitignore' \

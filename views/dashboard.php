@@ -12,6 +12,9 @@ require __DIR__ . '/_header.php';
         <a href="<?= base_path() ?>/"><?= t('nav_new_link') ?></a>
         <a href="<?= base_path() ?>/app/bio"><?= t('nav_bio') ?></a>
         <a href="<?= base_path() ?>/app/keys"><?= t('nav_keys') ?></a>
+        <?php if (is_admin($user)): ?>
+          <a href="<?= base_path() ?>/admin/users" title="Admin panel">Admin</a>
+        <?php endif; ?>
         <a href="#" id="logout-btn"><?= t('nav_signout') ?></a>
         <?php require __DIR__ . '/_lang_switch.php'; ?>
         <?php require __DIR__ . '/_theme_toggle.php'; ?>

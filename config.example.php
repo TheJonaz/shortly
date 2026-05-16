@@ -53,6 +53,20 @@ return [
     // Leave empty to disable the endpoint.
     'internal_secret' => '',
 
+    // ─── Admin panel ──────────────────────────────────────────────────────
+    // Email allow-list. Any signed-in user whose email appears here can
+    // reach /admin. Empty array → /admin returns 403 for everyone; the
+    // panel is effectively disabled. Add/remove emails to grant/revoke
+    // access (case-insensitive match).
+    'admin_emails' => [
+        // 'you@example.com',
+    ],
+
+    // Stripe Product the admin panel manages Prices under. If blank, the
+    // plans page falls back to listing every Price on the account. Set
+    // this once you have a Product called e.g. "Pro" in Stripe Dashboard.
+    'stripe_product_id' => '',
+
     // ─── Optional integrations ────────────────────────────────────────────
     // All of the following are OFF by default. Leave the keys empty/unset
     // to disable each feature. Fill in to enable.

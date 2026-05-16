@@ -126,3 +126,72 @@ function stripe_create_portal_session(string $customerId, string $returnUrl): ar
 function stripe_get_subscription(string $subscriptionId): array {
     return stripe_request('GET', '/subscriptions/' . urlencode($subscriptionId));
 }
+
+// ─── Admin: Product + Price management ─────────────────────────────────
+
+// List Prices, optionally filtered by Product. Stripe returns up to 100
+// per page; we expand recurring + product so the admin UI doesn't have
+// to chase IDs. Caller passes false to include archived prices.
+function stripe_list_prices(?string $productId = null, bool $activeOnly = true): array {
+    $params = ['limit' => 100, 'expand[]' => 'data.product'];
+    if ($productId)  $params['product'] = $productId;
+    if ($activeOnly) $params['active']  = 'true';
+    return stripe_request('GET', '/prices', $params);
+}
+
+// Create a new Price. `currencyOptions` maps secondary-currency codes to
+// integer minor units (e.g. ['eur' => 499, 'usd' => 500]) and becomes
+// the Price's currency_options[] payload. Set lookup_key (must be unique
+// account-wide) so callers can resolve "the current monthly" without
+// hard-coding an ID.
+function stripe_create_price(
+    string $productId,
+    string $currency,
+    int $unitAmount,
+    string $interval,
+    array $currencyOptions = [],
+    ?string $lookupKey = null,
+    ?string $nickname = null
+): array {
+    $params = [
+        'product'              => $productId,
+        'currency'             => $currency,
+        'unit_amount'          => $unitAmount,
+        'recurring[interval]'  => $interval,
+        'transfer_lookup_key'  => 'true',
+    ];
+    if ($lookupKey) $params['lookup_key'] = $lookupKey;
+    if ($nickname)  $params['nickname']   = $nickname;
+    foreach ($currencyOptions as $code => $amount) {
+        $params["currency_options[{$code}][unit_amount]"] = (int) $amount;
+    }
+    return stripe_request('POST', '/prices', $params);
+}
+
+// Archive a Price (Stripe doesn't allow hard-delete on a Price). Existing
+// subscriptions on archived prices continue to bill — Stripe only refuses
+// NEW Checkouts against them.
+function stripe_archive_price(string $priceId): array {
+    return stripe_request('POST', '/prices/' . urlencode($priceId), ['active' => 'false']);
+}
+
+function stripe_unarchive_price(string $priceId): array {
+    return stripe_request('POST', '/prices/' . urlencode($priceId), ['active' => 'true']);
+}
+
+// Update mutable fields on a Price. Stripe forbids changing amount,
+// currency or recurring on an existing Price — to "raise the price"
+// the canonical pattern is: archive old, create new with same
+// lookup_key (transfer_lookup_key handles the swap atomically).
+function stripe_update_price(string $priceId, array $fields): array {
+    $params = [];
+    foreach ($fields as $k => $v) {
+        if ($v === null) continue;
+        $params[$k] = $v;
+    }
+    return stripe_request('POST', '/prices/' . urlencode($priceId), $params);
+}
+
+function stripe_list_products(): array {
+    return stripe_request('GET', '/products', ['limit' => 100, 'active' => 'true']);
+}

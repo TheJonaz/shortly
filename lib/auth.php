@@ -207,6 +207,32 @@ function auth_require(): array {
     return $u;
 }
 
+// Admin gate. An admin is any signed-in user whose email matches an entry
+// in config()['admin_emails']. Lookup is case-insensitive — emails are
+// normalised to lowercase at register time so a literal === would work
+// too, but case-insensitive is more forgiving if someone hand-edits the
+// list.
+function is_admin(?array $user): bool {
+    if (!$user || empty($user['email'])) return false;
+    $allow = (array) (config()['admin_emails'] ?? []);
+    if (!$allow) return false;
+    $email = strtolower((string) $user['email']);
+    foreach ($allow as $a) {
+        if (strtolower((string) $a) === $email) return true;
+    }
+    return false;
+}
+
+// Use at the top of every /admin route AND every /api/admin handler. For
+// API keys we deliberately refuse — admin actions go through session-auth
+// only so a leaked key can't grant admin rights.
+function require_admin(): array {
+    $u = auth_require();
+    if (($u['auth'] ?? null) === 'apikey') json_error('session_required', 401);
+    if (!is_admin($u)) json_error('forbidden', 403);
+    return $u;
+}
+
 function auth_clean_expired_sessions(): void {
     // Probabilistic throttle: ~1 in 1000 requests runs the sweep. Old impl
     // (time() % 3600 < 5) caused thundering-herd deletes for every request

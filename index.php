@@ -118,6 +118,33 @@ function route(string $method, string $path): void {
         return;
     }
     if ($path === '/upgrade' && $method === 'GET') { handle_upgrade_redirect(); return; }
+    // Page-level admin guard: anon → /login; signed-in non-admin → 403 view.
+    // (API equivalents enforce the same check in require_admin().)
+    $adminPageGate = function (): ?array {
+        $u = auth_current_user();
+        if (!$u) { header('Location: ' . public_url() . '/login'); exit; }
+        if (!is_admin($u)) {
+            http_response_code(403);
+            render_view('status', ['code' => 403, 'title' => 'Forbidden', 'sub' => 'Admin access only.']);
+            return null;
+        }
+        return $u;
+    };
+    if ($path === '/admin' && $method === 'GET') {
+        if (!$adminPageGate()) return;
+        render_view('admin_users', ['q' => (string) ($_GET['q'] ?? ''), 'page' => max(1, (int) ($_GET['page'] ?? 1))]);
+        return;
+    }
+    if ($path === '/admin/users' && $method === 'GET') {
+        if (!$adminPageGate()) return;
+        render_view('admin_users', ['q' => (string) ($_GET['q'] ?? ''), 'page' => max(1, (int) ($_GET['page'] ?? 1))]);
+        return;
+    }
+    if ($path === '/admin/plans' && $method === 'GET') {
+        if (!$adminPageGate()) return;
+        render_view('admin_plans');
+        return;
+    }
     if ($path === '/app/bio' && $method === 'GET') {
         if (!auth_current_user()) {
             header('Location: ' . public_url() . '/login');
@@ -220,6 +247,24 @@ function route(string $method, string $path): void {
     if (preg_match('#^/api/admin/links/([A-Za-z0-9_-]{2,32})/suspend$#', $path, $m)) {
         if ($method === 'POST')   { api_admin_suspend($m[1]);   return; }
         if ($method === 'DELETE') { api_admin_unsuspend($m[1]); return; }
+    }
+
+    // Admin panel APIs — session-auth gated by require_admin() inside each
+    // handler, NOT the Bearer-secret pattern used by abuse-queue above.
+    if ($path === '/api/admin/users' && $method === 'GET')   { api_admin_users_list();      return; }
+    if (preg_match('#^/api/admin/users/(\d+)/tier$#', $path, $m) && $method === 'POST') {
+        api_admin_user_tier((int) $m[1]); return;
+    }
+    if (preg_match('#^/api/admin/users/(\d+)/sessions$#', $path, $m) && $method === 'DELETE') {
+        api_admin_user_clear_sessions((int) $m[1]); return;
+    }
+    if ($path === '/api/admin/plans' && $method === 'GET')  { api_admin_plans_list();    return; }
+    if ($path === '/api/admin/plans' && $method === 'POST') { api_admin_plans_create();  return; }
+    if (preg_match('#^/api/admin/plans/(price_[A-Za-z0-9]+)/archive$#', $path, $m) && $method === 'POST') {
+        api_admin_plans_archive($m[1]); return;
+    }
+    if (preg_match('#^/api/admin/plans/(price_[A-Za-z0-9]+)/unarchive$#', $path, $m) && $method === 'POST') {
+        api_admin_plans_unarchive($m[1]); return;
     }
 
     // ---- redirect ----
@@ -830,6 +875,143 @@ function api_admin_unsuspend(string $slug): void {
     );
     if ($changed === 0) json_error('not_found', 404);
     json_response(['ok' => true, 'slug' => $slug]);
+}
+
+// ─── Admin panel handlers ──────────────────────────────────────────────
+// Session-auth gated by require_admin() (which itself rejects API-key
+// auth — admin actions can't be triggered by a leaked key).
+
+function api_admin_users_list(): void {
+    require_admin();
+    $q    = strtolower(trim((string) ($_GET['q'] ?? '')));
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $per  = 50;
+    $off  = ($page - 1) * $per;
+
+    if ($q !== '') {
+        $like = '%' . $q . '%';
+        $total = (int) db_get('SELECT COUNT(*) c FROM users WHERE LOWER(email) LIKE ?', [$like])['c'];
+        $rows  = db_all(
+            'SELECT id, email, name, tier, created_at FROM users
+             WHERE LOWER(email) LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?',
+            [$like, $per, $off]
+        );
+    } else {
+        $total = (int) db_get('SELECT COUNT(*) c FROM users')['c'];
+        $rows  = db_all(
+            'SELECT id, email, name, tier, created_at FROM users
+             ORDER BY id DESC LIMIT ? OFFSET ?',
+            [$per, $off]
+        );
+    }
+    json_response([
+        'users'    => $rows,
+        'total'    => $total,
+        'page'     => $page,
+        'per_page' => $per,
+    ]);
+}
+
+function api_admin_user_tier(int $userId): void {
+    require_admin();
+    $b = read_json_body();
+    $tier = (string) ($b['tier'] ?? '');
+    if (!in_array($tier, ['free', 'pro'], true)) json_error('invalid_tier', 400);
+
+    $u = db_get('SELECT id FROM users WHERE id = ?', [$userId]);
+    if (!$u) json_error('not_found', 404);
+
+    // The Stripe webhook is the source of truth for paid Pro — manually
+    // setting tier here only overrides the in-app gate. If the user has a
+    // Stripe subscription this flag will get reset on the next webhook
+    // event. Comp-ing pro for a free account works; "downgrading" a real
+    // paying customer here is misleading (their card will keep charging).
+    db_run('UPDATE users SET tier = ? WHERE id = ?', [$tier, $userId]);
+    json_response(['ok' => true]);
+}
+
+function api_admin_user_clear_sessions(int $userId): void {
+    require_admin();
+    $u = db_get('SELECT id FROM users WHERE id = ?', [$userId]);
+    if (!$u) json_error('not_found', 404);
+    db_run('DELETE FROM sessions WHERE user_id = ?', [$userId]);
+    json_response(['ok' => true]);
+}
+
+function api_admin_plans_list(): void {
+    require_admin();
+    $productId = (string) (config()['stripe_product_id'] ?? '');
+    $activeOnly = ($_GET['archived'] ?? '') !== '1';
+    try {
+        $prices = stripe_list_prices($productId ?: null, $activeOnly);
+    } catch (Throwable $e) {
+        error_log('[shortly:admin] stripe list failed: ' . $e->getMessage());
+        json_error('stripe_unavailable', 503);
+    }
+    json_response($prices);
+}
+
+function api_admin_plans_create(): void {
+    require_admin();
+    $productId = (string) (config()['stripe_product_id'] ?? '');
+    if ($productId === '') json_error('product_not_configured', 400);
+
+    $b = read_json_body();
+    $currency   = strtolower((string) ($b['currency'] ?? ''));
+    $amount     = (int) ($b['unit_amount'] ?? 0);
+    $interval   = (string) ($b['interval'] ?? '');
+    $lookupKey  = (string) ($b['lookup_key'] ?? '');
+    $nickname   = (string) ($b['nickname'] ?? '');
+    $extras     = (array)  ($b['currency_options'] ?? []);
+
+    if (!in_array($currency, ['sek', 'eur', 'usd'], true)) json_error('invalid_currency', 400);
+    if ($amount <= 0)                                       json_error('invalid_amount',  400);
+    if (!in_array($interval, ['month', 'year'], true))     json_error('invalid_interval', 400);
+
+    // Sanitize currency_options: lower-case keys, intval amounts, only
+    // permit known currencies. Drop the base currency if it appears in
+    // the extras map — Stripe rejects that.
+    $clean = [];
+    foreach ($extras as $code => $val) {
+        $code = strtolower((string) $code);
+        if (!in_array($code, ['sek', 'eur', 'usd'], true)) continue;
+        if ($code === $currency) continue;
+        $val = (int) $val;
+        if ($val > 0) $clean[$code] = $val;
+    }
+
+    try {
+        $price = stripe_create_price(
+            $productId, $currency, $amount, $interval,
+            $clean,
+            $lookupKey !== '' ? $lookupKey : null,
+            $nickname  !== '' ? $nickname  : null
+        );
+    } catch (Throwable $e) {
+        error_log('[shortly:admin] stripe create price failed: ' . $e->getMessage());
+        json_error('stripe_error: ' . $e->getMessage(), 502);
+    }
+    json_response($price);
+}
+
+function api_admin_plans_archive(string $priceId): void {
+    require_admin();
+    try { $r = stripe_archive_price($priceId); }
+    catch (Throwable $e) {
+        error_log('[shortly:admin] stripe archive failed: ' . $e->getMessage());
+        json_error('stripe_error: ' . $e->getMessage(), 502);
+    }
+    json_response($r);
+}
+
+function api_admin_plans_unarchive(string $priceId): void {
+    require_admin();
+    try { $r = stripe_unarchive_price($priceId); }
+    catch (Throwable $e) {
+        error_log('[shortly:admin] stripe unarchive failed: ' . $e->getMessage());
+        json_error('stripe_error: ' . $e->getMessage(), 502);
+    }
+    json_response($r);
 }
 
 function api_internal_stats(): void {
