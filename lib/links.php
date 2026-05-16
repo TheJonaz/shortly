@@ -307,15 +307,21 @@ function links_record_click(int $linkId): void {
     $deviceType = function_exists('device_type_from_ua')
         ? device_type_from_ua($ua)
         : null;
+    // Capture country BEFORE hashing the IP — the raw address never leaves
+    // this function. country may be null (private IP / lookup failed /
+    // disabled in config). See lib/geo.php.
+    $rawIp   = client_ip();
+    $country = function_exists('geo_country_for_ip') ? geo_country_for_ip($rawIp) : null;
     db_insert(
-        'INSERT INTO clicks (link_id, ts, referrer, user_agent, ip_hash, device_type) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO clicks (link_id, ts, referrer, user_agent, ip_hash, device_type, country) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
             $linkId,
             $now,
             $trim($_SERVER['HTTP_REFERER'] ?? null),
             $trim($ua),
-            ip_hash(client_ip()),
+            ip_hash($rawIp),
             $deviceType,
+            $country,
         ]
     );
     // Roll forward the auto-set expiry on free-tier links. Anonymous links

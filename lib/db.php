@@ -112,6 +112,12 @@ function db_migrate(PDO $pdo, string $driver): void {
     // show up in the breakdown — no backfill needed.
     $deviceType = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(20)';
     try { $pdo->exec("ALTER TABLE clicks ADD COLUMN device_type $deviceType NULL"); } catch (PDOException $e) {}
+    // ISO 3166-1 alpha-2 country code resolved at click time via lib/geo.php.
+    // 2-letter strings; historical rows stay NULL (no backfill — raw IPs are
+    // discarded after hashing so we can't recover them).
+    $country = $driver === 'sqlite' ? 'TEXT' : 'CHAR(2)';
+    try { $pdo->exec("ALTER TABLE clicks ADD COLUMN country $country NULL"); } catch (PDOException $e) {}
+    try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_clicks_country ON clicks(country)"); } catch (PDOException $e) {}
     $rlKey = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(190)';
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS rate_limits (

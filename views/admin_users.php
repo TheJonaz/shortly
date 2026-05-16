@@ -19,6 +19,7 @@ require __DIR__ . '/_header.php';
       <nav class="admin-tabs">
         <a href="<?= base_path() ?>/admin/users" class="active">Users</a>
         <a href="<?= base_path() ?>/admin/plans">Plans</a>
+        <a href="<?= base_path() ?>/admin/stats">Stats</a>
       </nav>
 
       <header class="admin-head">

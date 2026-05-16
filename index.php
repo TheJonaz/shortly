@@ -20,6 +20,7 @@ require __DIR__ . '/lib/security_headers.php';
 require __DIR__ . '/lib/email.php';
 require __DIR__ . '/lib/registration.php';
 require __DIR__ . '/lib/password_reset.php';
+require __DIR__ . '/lib/geo.php';
 require __DIR__ . '/lib/tier.php';
 require __DIR__ . '/lib/tags.php';
 require __DIR__ . '/lib/apikeys.php';
@@ -146,6 +147,11 @@ function route(string $method, string $path): void {
         render_view('admin_plans');
         return;
     }
+    if ($path === '/admin/stats' && $method === 'GET') {
+        if (!$adminPageGate()) return;
+        render_view('admin_stats');
+        return;
+    }
     if ($path === '/app/bio' && $method === 'GET') {
         if (!auth_current_user()) {
             header('Location: ' . public_url() . '/login');
@@ -270,6 +276,7 @@ function route(string $method, string $path): void {
     if (preg_match('#^/api/admin/plans/(price_[A-Za-z0-9]+)/unarchive$#', $path, $m) && $method === 'POST') {
         api_admin_plans_unarchive($m[1]); return;
     }
+    if ($path === '/api/admin/stats' && $method === 'GET') { api_admin_stats(); return; }
 
     // ---- redirect ----
     if (preg_match('#^/([A-Za-z0-9_-]{2,32})$#', $path, $m) && $method === 'GET') { redirect_slug($m[1]); return; }
@@ -1092,6 +1099,43 @@ function api_admin_plans_unarchive(string $priceId): void {
     json_response($r);
 }
 
+function api_admin_stats(): void {
+    require_admin();
+    $now = now_ms();
+    $win7  = $now - 7  * 86400 * 1000;
+    $win30 = $now - 30 * 86400 * 1000;
+
+    $total_all = (int) (db_get('SELECT COUNT(*) c FROM clicks')['c'] ?? 0);
+    $total_30  = (int) (db_get('SELECT COUNT(*) c FROM clicks WHERE ts >= ?', [$win30])['c'] ?? 0);
+    $total_7   = (int) (db_get('SELECT COUNT(*) c FROM clicks WHERE ts >= ?', [$win7])['c']  ?? 0);
+
+    // Unique = distinct salted-hash. Hashes from before the salt was set
+    // are NULL, so COUNT(DISTINCT) skips them silently. Not perfect — a
+    // returning visitor on a new IP shows as two uniques — but matches
+    // how every privacy-respecting analytics tool counts.
+    $uniq_all = (int) (db_get('SELECT COUNT(DISTINCT ip_hash) c FROM clicks')['c'] ?? 0);
+    $uniq_30  = (int) (db_get('SELECT COUNT(DISTINCT ip_hash) c FROM clicks WHERE ts >= ?', [$win30])['c'] ?? 0);
+    $uniq_7   = (int) (db_get('SELECT COUNT(DISTINCT ip_hash) c FROM clicks WHERE ts >= ?', [$win7])['c']  ?? 0);
+
+    // Country rollup — last 30 days, top 20. Rows with NULL country
+    // (private IPs, lookup failed, pre-2026-05-16 history) are reported
+    // as a single "unknown" bucket so the picture stays honest.
+    $rows = db_all(
+        'SELECT COALESCE(country, "??") AS country, COUNT(*) AS count
+         FROM clicks WHERE ts >= ?
+         GROUP BY country
+         ORDER BY count DESC
+         LIMIT 20',
+        [$win30]
+    );
+
+    json_response([
+        'totals'    => ['all_time' => $total_all, 'days_30' => $total_30, 'days_7' => $total_7],
+        'unique'    => ['all_time' => $uniq_all,  'days_30' => $uniq_30,  'days_7' => $uniq_7 ],
+        'countries' => $rows,
+    ]);
+}
+
 function api_internal_stats(): void {
     // Belt-and-braces: the Bearer secret already protects this endpoint, but
     // a per-IP cap means a leaked-once secret (the 2026-05-01 config-drift
@@ -1181,9 +1225,19 @@ function redirect_slug(string $slug): void {
     // UX for legit users sharing an IP. Just silently skip the insert past
     // the limit; the redirect itself still happens.
     $ip = client_ip() ?? 'unknown';
-    if (rate_limit_check('click:ip:' . $ip, 600, 60)) {
-        links_record_click((int) $link['id']);
-    }
+    $shouldRecord = rate_limit_check('click:ip:' . $ip, 600, 60);
+
+    // Send the redirect first, then close the response to the user before
+    // doing the click insert (and its third-party geo lookup). The visitor
+    // sees the redirect in single-digit ms; the ~hundreds-of-ms GeoIP call
+    // happens after they're already gone. Falls back to in-order when
+    // fastcgi_finish_request() isn't available (non-FPM SAPIs).
     header('Location: ' . $link['target'], true, 302);
+    if ($shouldRecord && function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        links_record_click((int) $link['id']);
+        exit;
+    }
+    if ($shouldRecord) links_record_click((int) $link['id']);
     exit;
 }

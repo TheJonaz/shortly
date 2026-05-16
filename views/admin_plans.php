@@ -16,6 +16,7 @@ $productId = (string) (config()['stripe_product_id'] ?? '');
       <nav class="admin-tabs">
         <a href="<?= base_path() ?>/admin/users">Users</a>
         <a href="<?= base_path() ?>/admin/plans" class="active">Plans</a>
+        <a href="<?= base_path() ?>/admin/stats">Stats</a>
       </nav>
 
       <header class="admin-head">
