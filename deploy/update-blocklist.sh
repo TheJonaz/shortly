@@ -2,9 +2,9 @@
 # Refresh the malicious-domain blocklist from URLhaus.
 #
 # Designed to run from cron daily:
-#     0 4 * * *  /var/www/url.thern.io/public_html/deploy/update-blocklist.sh
+#     0 4 * * *  /path/to/shortly/deploy/update-blocklist.sh
 #
-# Safe to run as the web user (www-data on Apache, the FTP user on Inleed).
+# Safe to run as the web user (e.g. www-data) or the FTP user on shared hosting.
 # Output is atomically renamed so a partial download never poisons the file
 # read by PHP. Exits 0 on success, non-zero on transport failure.
 

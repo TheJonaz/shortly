@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One-shot local setup for serving the shortly app at http://192.168.1.23/shortly
-# via the nginx + PHP-FPM that already runs on this host.
+# One-shot local setup for serving the shortly app at /shortly on the host's
+# existing nginx + PHP-FPM. Edit deploy/nginx-shortly.conf's `root` first.
 #
 # Run as root:
 #   sudo ./deploy/setup-local.sh
@@ -78,8 +78,11 @@ nginx -t
 echo "→ Reloading nginx..."
 systemctl reload nginx
 
+HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[[ -z "$HOST_IP" ]] && HOST_IP="<host-ip>"
+
 echo
-echo "✓ Done. Visit http://192.168.1.23/shortly/"
+echo "✓ Done. Visit http://${HOST_IP}/shortly/"
 echo
 echo "  If you get a 404, the include line is missing from your site config."
 echo "  If you get a 502, check 'sudo journalctl -u $PHP_FPM_SVC -n 50'."

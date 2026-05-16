@@ -1,4 +1,4 @@
-# url.thern.io / shortly — Apache config (Inleed shared hosting)
+# shortly — Apache front-controller config (e.g. shared hosting).
 #
 # Strategy: serve real files directly (assets, robots.txt, favicon),
 # rewrite everything else to index.php for routing.

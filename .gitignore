@@ -1,6 +1,8 @@
 # Local config / secrets
 config.php
 .ftp-password
+.envrc
+.env
 
 # Database files (SQLite lives in data/)
 data/*.db

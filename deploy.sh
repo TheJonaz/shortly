@@ -21,10 +21,12 @@
 
 set -euo pipefail
 
-HOST="ns15.inleed.net"
-USER="url@thern.io"
-# FTP user is jailed — its / is the public_html for url.thern.io.
-REMOTE_DIR="/"
+# Host + user can be overridden via env vars (e.g. in a gitignored
+# .envrc / direnv config) so the committed defaults stay generic.
+HOST="${FTP_HOST:-ftp.example.com}"
+USER="${FTP_USER:-ftpuser@example.com}"
+# FTP user is typically jailed — its / is the public_html for the site.
+REMOTE_DIR="${FTP_REMOTE_DIR:-/}"
 LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if ! command -v lftp >/dev/null; then

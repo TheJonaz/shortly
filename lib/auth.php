@@ -152,7 +152,7 @@ function auth_thern_sso(): ?array {
     $memberEmail = strtolower(trim((string) ($data['member']['email'] ?? '')));
     if (!$memberId || !$memberEmail || !filter_var($memberEmail, FILTER_VALIDATE_EMAIL)) return null;
 
-    // Find or auto-create a shortly user for this thern.io member.
+    // Find or auto-create a shortly user for this SSO member.
     // SSO-only accounts get a sentinel password_hash so password_verify() can
     // never accidentally succeed against them, even if the comparison ever
     // regresses (defense in depth — verify() rejects non-bcrypt strings today).
