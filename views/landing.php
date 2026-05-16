@@ -139,7 +139,6 @@ require __DIR__ . '/_header.php';
             <li><?= t('tier_pro_f2') ?></li>
             <li><?= t('tier_pro_f3') ?></li>
             <li><?= t('tier_pro_f4') ?></li>
-            <li><?= t('tier_pro_f5') ?></li>
             <li><?= t('tier_pro_f6') ?></li>
           </ul>
           <a class="btn ghost tier-cta" href="<?= e($proMonthlyHref) ?>"><?= e($proLabel) ?></a>
@@ -158,7 +157,6 @@ require __DIR__ . '/_header.php';
             <li><?= t('tier_pro_f2') ?></li>
             <li><?= t('tier_pro_f3') ?></li>
             <li><?= t('tier_pro_f4') ?></li>
-            <li><?= t('tier_pro_f5') ?></li>
             <li><?= t('tier_pro_f6') ?></li>
           </ul>
           <a class="btn primary tier-cta" href="<?= e($proYearlyHref) ?>"><?= e($proLabel) ?></a>

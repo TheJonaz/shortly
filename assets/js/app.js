@@ -97,7 +97,7 @@ async function bootstrap() {
 
 const BL = window.LANG === 'sv' ? {
   upgrade_h:    'Uppgradera till Pro',
-  upgrade_sub:  'Få avancerad statistik, redigerbara länkar, lösenordsskydd, anpassad utgång, bulk-uppladdning och mer.',
+  upgrade_sub:  'Få avancerad statistik, redigerbara länkar, lösenordsskydd, anpassad utgång och mer.',
   save:         'Spara 17%',
   per_month:    '/ månad',
   per_year:     '/ år',
@@ -119,7 +119,7 @@ const BL = window.LANG === 'sv' ? {
   err_generic:  'Något gick fel.',
 } : {
   upgrade_h:    'Upgrade to Pro',
-  upgrade_sub:  'Get advanced analytics, editable links, password protection, custom expiry, bulk upload and more.',
+  upgrade_sub:  'Get advanced analytics, editable links, password protection, custom expiry, and more.',
   save:         'Save 17%',
   per_month:    '/ month',
   per_year:     '/ year',
