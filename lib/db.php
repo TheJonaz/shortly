@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+// Bump this every time db_migrate() gains a new CREATE TABLE / ALTER /
+// CREATE INDEX. SQLite tracks the value in `PRAGMA user_version` and we
+// skip the entire migrate body on subsequent requests when it matches —
+// turning ~40 idempotent DDL statements (and a fistful of try/catch
+// exception unwinds for already-applied ALTERs) into one PRAGMA read on
+// the hot path. Forgetting to bump it just means a new column waits
+// until next deploy of the DB host — safe, not silent corruption.
+const SHORTLY_SCHEMA_VERSION = 1;
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
@@ -20,6 +29,11 @@ function db(): PDO {
         ]);
         $pdo->exec('PRAGMA journal_mode = WAL');
         $pdo->exec('PRAGMA foreign_keys = ON');
+        // Without this, a concurrent writer mid-transaction makes the
+        // next request 500 with "database is locked". 5s window lets
+        // SQLite retry the lock acquisition transparently — well above
+        // typical write latency for our row sizes.
+        $pdo->exec('PRAGMA busy_timeout = 5000');
     } else {
         $dsn = sprintf(
             'mysql:host=%s;port=%d;dbname=%s;charset=%s',
@@ -37,6 +51,15 @@ function db(): PDO {
 }
 
 function db_migrate(PDO $pdo, string $driver): void {
+    // Skip the whole migrate body if SQLite already advertises the
+    // current schema version. We re-check the version *after* running
+    // (not via a cached static) so that a manual DB swap or a fresh
+    // file is still picked up on the next request.
+    if ($driver === 'sqlite') {
+        $cur = (int) $pdo->query('PRAGMA user_version')->fetchColumn();
+        if ($cur === SHORTLY_SCHEMA_VERSION) return;
+    }
+
     $autoinc = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT UNSIGNED AUTO_INCREMENT PRIMARY KEY';
     $bigint  = $driver === 'sqlite' ? 'INTEGER' : 'BIGINT';
     $text    = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(2048)';
@@ -273,6 +296,12 @@ function db_migrate(PDO $pdo, string $driver): void {
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_links_user ON links(user_id)"); } catch (PDOException $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_clicks_link ON clicks(link_id)"); } catch (PDOException $e) {}
     try { $pdo->exec("CREATE INDEX IF NOT EXISTS idx_clicks_ts ON clicks(ts)"); } catch (PDOException $e) {}
+
+    // Stamp the version last — if a CREATE/ALTER above threw an unexpected
+    // exception we want the next request to retry, not skip past it.
+    if ($driver === 'sqlite') {
+        $pdo->exec('PRAGMA user_version = ' . (int) SHORTLY_SCHEMA_VERSION);
+    }
 }
 
 // ---------- shorthand helpers ----------
