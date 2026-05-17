@@ -44,9 +44,17 @@ return [
     // subdomains.
     'cookie_domain' => null,
 
-    // Trust X-Forwarded-For for client IP detection. Set true ONLY when running
-    // behind a known reverse proxy that sets the header (e.g. shared hosting
-    // that terminates TLS upstream, or nginx → php-fpm with proxy_set_header).
+    // Trust CF-Connecting-IP / X-Forwarded-For / X-Real-IP for client IP
+    // detection. Set true ONLY when running behind a known reverse proxy
+    // that sets one of those headers (Cloudflare, a shared host that
+    // terminates TLS upstream, an nginx fronting php-fpm with
+    // proxy_set_header). When true and behind Cloudflare:
+    //   - lib/util.php::client_ip() reads CF-Connecting-IP for click
+    //     logs, rate-limit keys, and the geo lookup
+    //   - lib/security_headers.php detects HTTPS via X-Forwarded-Proto
+    //     so the Secure cookie flag stays set
+    // When false on a Cloudflare-fronted site, every visitor looks like
+    // Cloudflare's edge IP — rate-limiting collapses and stats break.
     'trust_proxy' => false,
 
     // Shared secret for /api/internal/stats. Send as `Authorization: Bearer …`.

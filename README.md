@@ -212,6 +212,26 @@ A snippet that mounts shortly at a sub-path on a local nginx lives in
 PHP-FPM vhost at `index.php` and ensure `lib/`, `views/`, and `data/`
 are not served.
 
+### Cloudflare in front (recommended on shared hosting)
+
+Putting Cloudflare's free proxy in front absorbs bursty / pentest-style
+load before it ever reaches the origin, caches `/assets/*`, and as a
+bonus injects `CF-IPCountry` on every request so `lib/geo.php` skips
+its outbound ipinfo.io call.
+
+1. Add the site to Cloudflare; let it autodiscover DNS and proxy the
+   relevant record (orange-cloud).
+2. SSL/TLS → set to **Full (strict)** if origin serves valid TLS, else
+   **Full**.
+3. Once traffic actually flows through CF, set `'trust_proxy' => true`
+   in `config.php`. shortly then reads `CF-Connecting-IP` for click
+   logs / rate-limit keys / geo lookups and `X-Forwarded-Proto` for the
+   Secure cookie flag. Setting `trust_proxy` true while NOT actually
+   behind a trusted proxy lets any direct visitor spoof their IP — keep
+   it false until CF is verified active.
+4. Optional: enable **Caching → Cache Rules** for `/assets/*` to take
+   static asset traffic off PHP entirely.
+
 ## Notes
 
 - Sessions live in the DB and last 30 days (configurable).

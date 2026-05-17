@@ -56,7 +56,11 @@ function client_ip(): ?string {
     // Only honour proxy headers when explicitly trusted — otherwise any client
     // can spoof X-Forwarded-For and poison the click log / rate-limit keys.
     if (!empty(config()['trust_proxy'])) {
-        foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'] as $k) {
+        // CF-Connecting-IP first: Cloudflare always overwrites it with the
+        // real client IP. X-Forwarded-For can be appended by intermediate
+        // proxies (so the LEFTMOST entry is the original) and Real-IP is
+        // an nginx-set fallback.
+        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'] as $k) {
             if (!empty($_SERVER[$k])) {
                 $ip = trim(explode(',', $_SERVER[$k])[0]);
                 if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
