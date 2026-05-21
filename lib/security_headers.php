@@ -57,6 +57,21 @@ function send_security_headers(): void {
     $tsScript = $tsConfigured ? ' https://challenges.cloudflare.com' : '';
     $tsFrame  = $tsConfigured ? "frame-src https://challenges.cloudflare.com" : "frame-src 'none'";
 
+    // AdSense pulls scripts, images, beacons, and iframes from a fixed set of
+    // Google ad-serving origins. Whitelist them only when actually configured
+    // so non-monetised instances keep the tighter policy.
+    $adsOn = function_exists('adsense_is_configured') && adsense_is_configured();
+    $adsScript  = $adsOn ? ' https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.google.com https://*.doubleclick.net https://adservice.google.com' : '';
+    $adsImg     = $adsOn ? ' https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com https://*.gstatic.com' : '';
+    $adsConnect = $adsOn ? ' https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://*.google.com' : '';
+    $adsFrameOrigins = $adsOn ? ' https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com' : '';
+    // Splice ad frame origins into whichever frame-src directive we settled on above.
+    if ($adsOn) {
+        $tsFrame = ($tsConfigured
+            ? "frame-src https://challenges.cloudflare.com"
+            : "frame-src") . $adsFrameOrigins;
+    }
+
     // Per-request nonce — every inline <script> we render carries this in
     // its nonce attribute. Drops 'unsafe-inline' from script-src so any
     // XSS that lands in an attribute or text node can't execute.
@@ -75,11 +90,11 @@ function send_security_headers(): void {
 
     $csp = [
         "default-src 'self'",
-        "script-src 'self' 'nonce-{$nonce}'" . $tsScript,
+        "script-src 'self' 'nonce-{$nonce}'" . $tsScript . $adsScript,
         "style-src 'self' 'unsafe-inline' https://rsms.me https://fonts.googleapis.com",
         "font-src 'self' https://rsms.me https://fonts.gstatic.com",
-        "img-src 'self' data:",
-        "connect-src 'self'" . $beaconOrigin,
+        "img-src 'self' data:" . $adsImg,
+        "connect-src 'self'" . $beaconOrigin . $adsConnect,
         $tsFrame,
         "frame-ancestors 'none'",
         "form-action 'self'",

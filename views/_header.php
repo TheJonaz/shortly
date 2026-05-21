@@ -21,6 +21,10 @@ $base        = public_url();
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap">
   <link rel="stylesheet" href="<?= base_path() ?>/assets/css/style.css">
   <link rel="icon" type="image/svg+xml" href="<?= base_path() ?>/favicon.svg">
+  <?php if (function_exists('adsense_is_configured') && adsense_is_configured()): ?>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<?= e(adsense_client()) ?>"
+            crossorigin="anonymous" nonce="<?= e(csp_nonce()) ?>"></script>
+  <?php endif; ?>
   <script nonce="<?= e(csp_nonce()) ?>">
     (function () {
       try {

@@ -27,15 +27,20 @@ require __DIR__ . '/_header.php';
 
     <form class="shorten" id="shorten-form" autocomplete="off">
       <div class="shorten-row">
-        <input
-          class="shorten-input"
-          type="url"
-          id="target"
-          name="target"
-          placeholder="https://example.com/the-long-one"
-          required
-          autofocus
-        >
+        <div class="shorten-input-wrap">
+          <input
+            class="shorten-input"
+            type="url"
+            id="target"
+            name="target"
+            placeholder="https://example.com/the-long-one"
+            required
+            autofocus
+          >
+          <button type="button" class="paste-btn" id="paste-btn" hidden aria-label="<?= e(t('aria_paste')) ?>" title="<?= e(t('aria_paste')) ?>">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+          </button>
+        </div>
         <button class="btn primary" type="submit" id="submit-btn">
           <span><?= t('btn_shorten') ?></span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -64,7 +69,7 @@ require __DIR__ . '/_header.php';
       </details>
       <?php if (!$user): ?>
         <?php if (turnstile_is_configured()): ?>
-          <div class="cf-turnstile" data-sitekey="<?= e(turnstile_site_key()) ?>" data-callback="onTurnstileToken" style="margin-top:12px;"></div>
+          <div class="cf-turnstile" data-sitekey="<?= e(turnstile_site_key()) ?>" data-callback="onTurnstileToken" data-appearance="interaction-only" style="margin-top:12px;"></div>
         <?php endif; ?>
         <p class="anon-note" style="margin-top:12px;font-size:12px;opacity:.65;">
           <?= t('anon_link_warning') ?>
@@ -94,6 +99,25 @@ require __DIR__ . '/_header.php';
       </div>
     </div>
     <div class="qr-wrap" id="qr-wrap"><canvas id="qr"></canvas></div>
+
+    <?php
+      // Show AdSense only to free/anon visitors and only when configured.
+      // Slot itself starts hidden and is revealed by index.js once the user
+      // has actually shortened something — keeps it out of the way until
+      // the action that earned the impression has happened.
+      $showAd = adsense_is_configured()
+        && (!$user || ($user['tier'] ?? 'free') !== 'pro');
+    ?>
+    <?php if ($showAd): ?>
+      <aside class="ad-slot" id="result-ad" hidden aria-label="Sponsored">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="<?= e(adsense_client()) ?>"
+             data-ad-slot="<?= e(adsense_slot('landing_result')) ?>"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </aside>
+    <?php endif; ?>
 
     <section class="pricing">
       <header class="pricing-header">

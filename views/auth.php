@@ -50,7 +50,7 @@ $verifyHref = base_path() . '/verify' . ($forward ? '?' . http_build_query($forw
           <input type="password" id="password" name="password" required minlength="8" autocomplete="<?= $isRegister ? 'new-password' : 'current-password' ?>">
         </div>
         <?php if ($isRegister && turnstile_is_configured()): ?>
-          <div class="cf-turnstile" data-sitekey="<?= e(turnstile_site_key()) ?>" data-callback="onTurnstileToken" style="margin-top:8px;"></div>
+          <div class="cf-turnstile" data-sitekey="<?= e(turnstile_site_key()) ?>" data-callback="onTurnstileToken" data-appearance="interaction-only" style="margin-top:8px;"></div>
         <?php endif; ?>
         <button class="btn primary" type="submit" id="auth-submit"><?= $isRegister ? t('btn_register') : t('btn_signin') ?></button>
       </form>
@@ -74,4 +74,4 @@ $verifyHref = base_path() . '/verify' . ($forward ? '?' . http_build_query($forw
 
   <script type="module" src="<?= base_path() ?>/assets/js/login.js"></script>
 
-<?php require __DIR__ . '/_footer.php'; ?>
+<?php $hideFooterAd = true; require __DIR__ . '/_footer.php'; ?>

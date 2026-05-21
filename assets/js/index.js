@@ -27,12 +27,25 @@ const targetInput = document.getElementById('target');
 const slugInput = document.getElementById('slug');
 const expiryInput = document.getElementById('expires_at');
 const pwInput = document.getElementById('password');
+const pasteBtn = document.getElementById('paste-btn');
 const copyBtn = document.getElementById('copy-btn');
 const qrBtn = document.getElementById('qr-btn');
 const newBtn = document.getElementById('new-btn');
 const qrWrap = document.getElementById('qr-wrap');
 
 let lastShort = null;
+let adPushed = false;
+
+// Reveal and request fill on the AdSense slot after the user has actually
+// shortened a link. Only triggers once per page load — AdSense rejects a
+// repeated push() against the same <ins> element.
+function revealResultAd() {
+  const ad = document.getElementById('result-ad');
+  if (!ad || adPushed) return;
+  ad.hidden = false;
+  try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch {}
+  adPushed = true;
+}
 
 const errorMessages = {
   invalid_url: 'That doesn\'t look like a valid URL.',
@@ -92,6 +105,7 @@ form.addEventListener('submit', async (e) => {
     resultEl.hidden = false;
     qrWrap.classList.remove('show');
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    revealResultAd();
   } catch (err) {
     const msg = errorMessages[err.message] || 'Something went wrong: ' + err.message;
     toast(msg, 'error');
@@ -100,6 +114,20 @@ form.addEventListener('submit', async (e) => {
     submitBtn.querySelector('span').textContent = 'Shorten';
   }
 });
+
+if (pasteBtn && navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+  pasteBtn.hidden = false;
+  pasteBtn.addEventListener('click', async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) { targetInput.focus(); return; }
+      targetInput.value = text;
+      form.requestSubmit(submitBtn);
+    } catch {
+      targetInput.focus();
+    }
+  });
+}
 
 copyBtn.addEventListener('click', () => lastShort && copyText(lastShort));
 

@@ -34,4 +34,4 @@ require __DIR__ . '/_header.php';
 
   <script type="module" src="<?= base_path() ?>/assets/js/forgot.js"></script>
 
-<?php require __DIR__ . '/_footer.php'; ?>
+<?php $hideFooterAd = true; require __DIR__ . '/_footer.php'; ?>

@@ -81,6 +81,32 @@ $legalLine    = $tr($footer['legal_line']    ?? '');
       <?php endif; ?>
     </div>
 
+    <?php
+      // Footer ad: configured + non-Pro + view didn't opt out. Resolve $user
+      // here (footer is included from views that don't all set it) and skip
+      // entirely on transactional pages (auth/verify/reset/forgot/report)
+      // which set $hideFooterAd = true before requiring the footer —
+      // AdSense policy forbids ads near login/password forms.
+      $footerAdUser = $user ?? (function_exists('auth_current_user') ? auth_current_user() : null);
+      $footerAdShow = empty($hideFooterAd)
+        && function_exists('adsense_is_configured') && adsense_is_configured()
+        && adsense_slot('footer') !== ''
+        && (!$footerAdUser || ($footerAdUser['tier'] ?? 'free') !== 'pro');
+    ?>
+    <?php if ($footerAdShow): ?>
+      <aside class="ad-slot ad-slot-footer" aria-label="Sponsored">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="<?= e(adsense_client()) ?>"
+             data-ad-slot="<?= e(adsense_slot('footer')) ?>"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+      </aside>
+      <script nonce="<?= e(csp_nonce()) ?>">
+        try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+      </script>
+    <?php endif; ?>
+
     <div class="foot-bottom">
       <div class="foot-bottom-left">
         <span class="foot-status">

@@ -53,4 +53,4 @@ $registerHref = base_path() . '/register' . ($forward ? '?' . http_build_query($
 
   <script type="module" src="<?= base_path() ?>/assets/js/verify.js"></script>
 
-<?php require __DIR__ . '/_footer.php'; ?>
+<?php $hideFooterAd = true; require __DIR__ . '/_footer.php'; ?>

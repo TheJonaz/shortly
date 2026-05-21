@@ -146,6 +146,18 @@ return [
     // Browsing API on your project).
     'safebrowsing_api_key' => '',
 
+    // Google AdSense. Empty client = ads disabled (no loader script emitted,
+    // CSP stays tight). When set, the landing page reveals an ad slot under
+    // the shorten result for anon + free-tier users only — Pro never sees ads.
+    // Get the client (ca-pub-…) and slot IDs at
+    // https://www.google.com/adsense → Sites + Ads.
+    'adsense_client' => '',          // e.g. 'ca-pub-7688096275430227'
+    'adsense_slots'  => [
+        'landing_result' => '',      // slot ID for the post-shorten ad
+        'footer'         => '',      // slot ID for the site-wide footer ad
+                                     //   (skipped on auth/verify/reset/forgot/report)
+    ],
+
     // ─── Outgoing mail ────────────────────────────────────────────────────
     // Email verification uses PHP's mail(). On dev where mail() can't
     // deliver, set 'mail_dev_log' => true to log codes to error_log.

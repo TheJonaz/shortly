@@ -33,6 +33,7 @@ require __DIR__ . '/lib/blocklist.php';
 require __DIR__ . '/lib/turnstile.php';
 require __DIR__ . '/lib/abuse.php';
 require __DIR__ . '/lib/safebrowsing.php';
+require __DIR__ . '/lib/adsense.php';
 
 // Send before any other header() / echo. setcookie() and json_response()
 // further down still work — header() just queues until output starts.
